@@ -16,6 +16,7 @@ export interface IFileSystemClient {
   exists(absolutePath: string): Promise<boolean>;
   isDirectory(absolutePath: string): Promise<boolean>;
   listFilesRecursively(absoluteDirPath: string, extensions: string[]): Promise<string[]>;
+  listDirectoriesRecursively(absoluteDirPath: string): Promise<string[]>;
 
   /**
    * Tenta resolver um "from" de import (ex: "./Button" ou "../hooks/useAuth")

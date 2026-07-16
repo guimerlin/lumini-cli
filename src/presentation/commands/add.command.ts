@@ -4,43 +4,99 @@ import { Command } from "commander";
 import { FileSystemClient } from "../../infrastructure/clients/file-system.client.js";
 import { StorageClient } from "../../infrastructure/clients/storage.client.js";
 import { AddComponentService } from "../../core/services/add-component.service.js";
-import { askConfirmInstallDeps, askDestination } from "../prompts/add.prompt.js";
+import { ConfigService } from "../../core/services/config.service.js";
+import {
+  askConfirmInstallDeps,
+  askDestination,
+  askConfirmOverwrite,
+  askInitConfig,
+} from "../prompts/add.prompt.js";
 import fs from "fs-extra";
 
 export function registerAddCommand(program: Command): void {
   program
-    .command("add <nome>")
-    .description("Injeta um componente salvo previamente no diretório atual")
-    .option("-d, --dest <pasta>", "pasta de destino (padrão: diretório atual)")
-    .action(async (nome: string, options: { dest?: string }) => {
+    .command("add <name>")
+    .description("Injects a previously saved component into the current directory")
+    .option("-d, --dest <folder>", "destination folder")
+    .option("-y, --yes", "auto-confirm prompts (like overwriting and dependency installation)")
+    .option("--default", "bypass all interactive prompts and run with default settings")
+    .action(async (name: string, options: { dest?: string; yes?: boolean; default?: boolean }) => {
       const fsClient = new FileSystemClient();
       const storageClient = new StorageClient();
       const addService = new AddComponentService(storageClient, fsClient);
+      const configService = new ConfigService(fsClient);
 
-      if (!(await storageClient.exists(nome))) {
+      if (!(await storageClient.exists(name))) {
         console.error(
-          chalk.red(`✗ Componente "${nome}" não existe na biblioteca. Rode "lumini list" para ver os salvos.`),
+          chalk.red(`✗ Component "${name}" not found in the library. Run "lumini list" to see available components.`),
         );
         process.exitCode = 1;
         return;
       }
 
-      const destinationDirAbsolutePath = path.resolve(
-        process.cwd(),
-        options.dest ?? (await askDestination(".")),
-      );
+      let configExists = await configService.exists();
+      if (!configExists && !options.default && !options.yes) {
+        const init = await askInitConfig();
+        if (init) {
+          await configService.write({
+            defaultImportPath: options.dest ?? ".",
+            importedComponents: {},
+          });
+          configExists = true;
+          console.log(chalk.green("✓ Initialized .lumini configuration file in project root."));
+        }
+      }
+
+      const config = configExists ? await configService.read() : {};
+
+      const isAlreadyImported = config.importedComponents && name in config.importedComponents;
+      if (isAlreadyImported && !options.yes && !options.default) {
+        const overwrite = await askConfirmOverwrite(name);
+        if (!overwrite) {
+          console.log(chalk.yellow("Aborted."));
+          return;
+        }
+      }
+
+      let destination = options.dest;
+      if (!destination) {
+        if (config.defaultImportPath) {
+          destination = config.defaultImportPath;
+        } else if (options.default) {
+          destination = ".";
+        } else {
+          destination = await askDestination(".");
+        }
+      }
+
+      const destinationDirAbsolutePath = path.resolve(process.cwd(), destination);
 
       try {
-        const result = await addService.execute({ name: nome, destinationDirAbsolutePath });
+        const result = await addService.execute({ name, destinationDirAbsolutePath });
 
-        console.log(chalk.green(`✓ "${nome}" adicionado.`));
-        for (const file of result.writtenFiles) {
-          console.log(chalk.dim(`  + ${path.relative(process.cwd(), file)}`));
+        const displayTag = result.metadata.tag && result.metadata.tag !== "_general" ? `@[${result.metadata.tag}]/` : "";
+        console.log(chalk.green(`✓ "${displayTag}${result.metadata.name}" added successfully.`));
+
+        if (result.metadata.structureOnly) {
+          console.log(
+            chalk.dim(`  Created folder structure inside ${path.relative(process.cwd(), destinationDirAbsolutePath)}`),
+          );
+        } else {
+          for (const file of result.writtenFiles) {
+            console.log(chalk.dim(`  + ${path.relative(process.cwd(), file)}`));
+          }
         }
+
+        const updatedConfig = await configService.read();
+        if (!updatedConfig.defaultImportPath && destination) {
+          updatedConfig.defaultImportPath = destination;
+          await configService.write(updatedConfig);
+        }
+        await configService.registerImport(name, result.metadata.tag, result.writtenFiles);
 
         if (result.missingDependencies.length > 0) {
           const depNames = result.missingDependencies.map((d) => d.name);
-          const shouldInstall = await askConfirmInstallDeps(depNames);
+          const shouldInstall = options.yes || options.default || (await askConfirmInstallDeps(depNames));
 
           if (shouldInstall) {
             const pkgInfo = await fsClient.findNearestPackageJson(destinationDirAbsolutePath);
@@ -52,25 +108,25 @@ export function registerAddCommand(program: Command): void {
               }
               await fs.writeJson(pkgInfo.path, pkgJson, { spaces: 2 });
               console.log(
-                chalk.green(`✓ Adicionado ao package.json (rode seu instalador: npm/pnpm/yarn install).`),
+                chalk.green(`✓ Added missing dependency(ies) to package.json. Please run: npm/pnpm/yarn install`),
               );
             } else {
               console.log(
-                chalk.yellow("⚠ Nenhum package.json encontrado a partir do destino; adicione manualmente:"),
+                chalk.yellow("⚠ No package.json found from destination path; install manually:"),
               );
               for (const dep of result.missingDependencies) {
                 console.log(chalk.dim(`  ${dep.name}: ${dep.version}`));
               }
             }
           } else {
-            console.log(chalk.yellow("⚠ Lembre-se de instalar manualmente:"));
+            console.log(chalk.yellow("⚠ Please remember to install dependencies manually:"));
             for (const dep of result.missingDependencies) {
               console.log(chalk.dim(`  ${dep.name}: ${dep.version}`));
             }
           }
         }
       } catch (error) {
-        console.error(chalk.red(`✗ Falha ao adicionar: ${(error as Error).message}`));
+        console.error(chalk.red(`✗ Failed to add: ${(error as Error).message}`));
         process.exitCode = 1;
       }
     });

@@ -1,11 +1,13 @@
 import inquirer from "inquirer";
+import chalk from "chalk";
 
 export async function askDestination(defaultDir: string): Promise<string> {
   const { destination } = await inquirer.prompt<{ destination: string }>([
     {
       type: "input",
       name: "destination",
-      message: "Em qual pasta o componente deve ser inserido?",
+      prefix: chalk.bold.cyan("📁 "),
+      message: chalk.bold("In which folder should the component be placed?"),
       default: defaultDir,
     },
   ]);
@@ -17,9 +19,38 @@ export async function askConfirmInstallDeps(deps: string[]): Promise<boolean> {
     {
       type: "confirm",
       name: "confirm",
-      message: `Faltam ${deps.length} dependência(s) no seu package.json (${deps.join(
-        ", ",
-      )}). Adicionar ao package.json agora?`,
+      prefix: chalk.bold.yellow("⚠ "),
+      message: chalk.bold(
+        `Your package.json is missing ${deps.length} external dependency(ies): ${deps.join(
+          ", ",
+        )}. Add them now?`
+      ),
+      default: true,
+    },
+  ]);
+  return confirm;
+}
+
+export async function askConfirmOverwrite(name: string): Promise<boolean> {
+  const { confirm } = await inquirer.prompt<{ confirm: boolean }>([
+    {
+      type: "confirm",
+      name: "confirm",
+      prefix: chalk.bold.yellow("⚠ "),
+      message: chalk.bold(`Component "${name}" is already imported in this project. Overwrite?`),
+      default: false,
+    },
+  ]);
+  return confirm;
+}
+
+export async function askInitConfig(): Promise<boolean> {
+  const { confirm } = await inquirer.prompt<{ confirm: boolean }>([
+    {
+      type: "confirm",
+      name: "confirm",
+      prefix: chalk.bold.cyan("⚙  "),
+      message: chalk.bold("No .lumini configuration file found in this project. Initialize one now?"),
       default: true,
     },
   ]);

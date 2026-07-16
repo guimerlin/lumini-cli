@@ -22,4 +22,8 @@ export interface ComponentMetadata {
   files: string[];
   /** Origem: caminho absoluto original no projeto onde foi feito o `save` (referência/depuração). */
   sourcePath: string;
+  /** Tag de organização do componente (padrão: _general) */
+  tag?: string;
+  /** Se true, o componente salva apenas a estrutura de diretórios */
+  structureOnly?: boolean;
 }

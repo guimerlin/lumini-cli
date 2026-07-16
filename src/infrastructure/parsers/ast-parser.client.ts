@@ -1,4 +1,5 @@
 import { readFile } from "node:fs/promises";
+import path from "node:path";
 import { parse } from "@babel/parser";
 // @babel/traverse e @babel/generator publicam CJS; em ESM o default vem dentro de `.default`.
 import _traverse from "@babel/traverse";
@@ -24,6 +25,8 @@ const BABEL_PLUGINS: import("@babel/parser").ParserPlugin[] = [
   "topLevelAwait",
 ];
 
+const JS_TS_EXTENSIONS = [".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs"];
+
 function isRelativeSource(source: string): boolean {
   return source.startsWith(".") || source.startsWith("/");
 }
@@ -40,8 +43,18 @@ function extractSpecifiers(node: t.ImportDeclaration): string[] {
 export class AstParserClient implements IAstParser {
   async parseFile(absolutePath: string): Promise<ParsedFile> {
     const code = await readFile(absolutePath, "utf-8");
-    const imports = this.extractImports(code);
-    return { code, imports };
+    const ext = path.extname(absolutePath).toLowerCase();
+    
+    if (!JS_TS_EXTENSIONS.includes(ext)) {
+      return { code, imports: [] };
+    }
+
+    try {
+      const imports = this.extractImports(code);
+      return { code, imports };
+    } catch {
+      return { code, imports: [] };
+    }
   }
 
   private extractImports(code: string): ImportInfo[] {
@@ -77,37 +90,45 @@ export class AstParserClient implements IAstParser {
   }
 
   rewriteImportSource(code: string, oldSource: string, newSource: string): string {
-    const ast = parse(code, { sourceType: "module", plugins: BABEL_PLUGINS });
+    try {
+      const ast = parse(code, { sourceType: "module", plugins: BABEL_PLUGINS });
 
-    traverse(ast, {
-      "ImportDeclaration|ExportNamedDeclaration|ExportAllDeclaration": (
-        path: NodePath<t.ImportDeclaration | t.ExportNamedDeclaration | t.ExportAllDeclaration>,
-      ) => {
-        const sourceNode = path.node.source;
-        if (sourceNode && sourceNode.value === oldSource) {
-          sourceNode.value = newSource;
-        }
-      },
-    });
+      traverse(ast, {
+        "ImportDeclaration|ExportNamedDeclaration|ExportAllDeclaration": (
+          path: NodePath<t.ImportDeclaration | t.ExportNamedDeclaration | t.ExportAllDeclaration>,
+        ) => {
+          const sourceNode = path.node.source;
+          if (sourceNode && sourceNode.value === oldSource) {
+            sourceNode.value = newSource;
+          }
+        },
+      });
 
-    return generate(ast, { retainLines: false }).code;
+      return generate(ast, { retainLines: false }).code;
+    } catch {
+      return code;
+    }
   }
 
   stripImportsBySource(code: string, sources: string[]): string {
-    const ast = parse(code, { sourceType: "module", plugins: BABEL_PLUGINS });
-    const sourceSet = new Set(sources);
+    try {
+      const ast = parse(code, { sourceType: "module", plugins: BABEL_PLUGINS });
+      const sourceSet = new Set(sources);
 
-    traverse(ast, {
-      "ImportDeclaration|ExportNamedDeclaration|ExportAllDeclaration": (
-        path: NodePath<t.ImportDeclaration | t.ExportNamedDeclaration | t.ExportAllDeclaration>,
-      ) => {
-        const sourceNode = path.node.source;
-        if (sourceNode && sourceSet.has(sourceNode.value)) {
-          path.remove();
-        }
-      },
-    });
+      traverse(ast, {
+        "ImportDeclaration|ExportNamedDeclaration|ExportAllDeclaration": (
+          path: NodePath<t.ImportDeclaration | t.ExportNamedDeclaration | t.ExportAllDeclaration>,
+        ) => {
+          const sourceNode = path.node.source;
+          if (sourceNode && sourceSet.has(sourceNode.value)) {
+            path.remove();
+          }
+        },
+      });
 
-    return generate(ast, { retainLines: false }).code;
+      return generate(ast, { retainLines: false }).code;
+    } catch {
+      return code;
+    }
   }
 }

@@ -86,12 +86,7 @@ export class FolderStrategy implements ISaveStrategy {
 
   // --- Caso 2: alvo é uma pasta -----------------------------------------
   private async resolveFolderTarget(targetAbsolutePath: string): Promise<StrategyResult> {
-    const filesInFolder = await this.fsClient.listFilesRecursively(targetAbsolutePath, [
-      ".ts",
-      ".tsx",
-      ".js",
-      ".jsx",
-    ]);
+    const filesInFolder = await this.fsClient.listFilesRecursively(targetAbsolutePath, ["*"]);
 
     const nodes: ComponentNode[] = [];
     const externalDependencies: Record<string, string> = {};

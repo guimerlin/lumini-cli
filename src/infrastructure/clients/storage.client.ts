@@ -12,12 +12,26 @@ const LIBRARY_ROOT = path.join(os.homedir(), ".lumini", "library");
 const METADATA_FILENAME = "lumini.metadata.json";
 
 export class StorageClient implements IStorageClient {
-  private componentDir(name: string): string {
-    return path.join(LIBRARY_ROOT, name);
+  private parseFullName(fullName: string): { tag: string; name: string } {
+    if (fullName.startsWith("@")) {
+      const parts = fullName.slice(1).split("/");
+      if (parts.length >= 2) {
+        const tag = parts[0] as string;
+        const name = parts.slice(1).join("/");
+        return { tag, name };
+      }
+    }
+    return { tag: "_general", name: fullName };
+  }
+
+  private componentDir(fullName: string, tag?: string): string {
+    const parsed = this.parseFullName(fullName);
+    const cleanTag = tag || parsed.tag;
+    return path.join(LIBRARY_ROOT, cleanTag, parsed.name);
   }
 
   async saveComponent(metadata: ComponentMetadata, files: StoredFile[]): Promise<void> {
-    const dir = this.componentDir(metadata.name);
+    const dir = this.componentDir(metadata.name, metadata.tag);
     await fs.ensureDir(dir);
 
     for (const file of files) {
@@ -30,12 +44,25 @@ export class StorageClient implements IStorageClient {
   }
 
   async loadComponent(name: string): Promise<LoadedComponent> {
-    const dir = this.componentDir(name);
-    const metadataPath = path.join(dir, METADATA_FILENAME);
+    let dir = this.componentDir(name);
+    let metadataPath = path.join(dir, METADATA_FILENAME);
+
+    if (!(await fs.pathExists(metadataPath))) {
+      // Legacy fallback
+      const parsed = this.parseFullName(name);
+      if (parsed.tag === "_general") {
+        const legacyDir = path.join(LIBRARY_ROOT, parsed.name);
+        const legacyMetadataPath = path.join(legacyDir, METADATA_FILENAME);
+        if (await fs.pathExists(legacyMetadataPath)) {
+          dir = legacyDir;
+          metadataPath = legacyMetadataPath;
+        }
+      }
+    }
 
     if (!(await fs.pathExists(metadataPath))) {
       throw new Error(
-        `Componente "${name}" não encontrado na biblioteca. Rode "lumini list" para ver os disponíveis.`,
+        `Component "${name}" not found in the library. Run "lumini list" to see available components.`,
       );
     }
 
@@ -51,7 +78,18 @@ export class StorageClient implements IStorageClient {
   }
 
   async exists(name: string): Promise<boolean> {
-    return fs.pathExists(path.join(this.componentDir(name), METADATA_FILENAME));
+    const dir = this.componentDir(name);
+    if (await fs.pathExists(path.join(dir, METADATA_FILENAME))) {
+      return true;
+    }
+    const parsed = this.parseFullName(name);
+    if (parsed.tag === "_general") {
+      const legacyDir = path.join(LIBRARY_ROOT, parsed.name);
+      if (await fs.pathExists(path.join(legacyDir, METADATA_FILENAME))) {
+        return true;
+      }
+    }
+    return false;
   }
 
   async list(): Promise<ComponentMetadata[]> {
@@ -61,9 +99,29 @@ export class StorageClient implements IStorageClient {
 
     for (const entry of entries) {
       if (!entry.isDirectory()) continue;
-      const metadataPath = path.join(LIBRARY_ROOT, entry.name, METADATA_FILENAME);
-      if (await fs.pathExists(metadataPath)) {
-        results.push(await fs.readJson(metadataPath));
+      
+      const entryPath = path.join(LIBRARY_ROOT, entry.name);
+      const directMetadataPath = path.join(entryPath, METADATA_FILENAME);
+
+      if (await fs.pathExists(directMetadataPath)) {
+        const metadata: ComponentMetadata = await fs.readJson(directMetadataPath);
+        if (!metadata.tag) {
+          metadata.tag = "_general";
+        }
+        results.push(metadata);
+      } else {
+        const comps = await fs.readdir(entryPath, { withFileTypes: true });
+        for (const comp of comps) {
+          if (!comp.isDirectory()) continue;
+          const metadataPath = path.join(entryPath, comp.name, METADATA_FILENAME);
+          if (await fs.pathExists(metadataPath)) {
+            const metadata: ComponentMetadata = await fs.readJson(metadataPath);
+            if (!metadata.tag) {
+              metadata.tag = entry.name;
+            }
+            results.push(metadata);
+          }
+        }
       }
     }
 
@@ -71,6 +129,17 @@ export class StorageClient implements IStorageClient {
   }
 
   async remove(name: string): Promise<void> {
-    await fs.remove(this.componentDir(name));
+    let dir = this.componentDir(name);
+    if (await fs.pathExists(dir)) {
+      await fs.remove(dir);
+      return;
+    }
+    const parsed = this.parseFullName(name);
+    if (parsed.tag === "_general") {
+      const legacyDir = path.join(LIBRARY_ROOT, parsed.name);
+      if (await fs.pathExists(legacyDir)) {
+        await fs.remove(legacyDir);
+      }
+    }
   }
 }

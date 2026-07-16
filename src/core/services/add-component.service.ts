@@ -1,6 +1,7 @@
 import path from "node:path";
 import type { IStorageClient } from "../interfaces/storage-client.interface.js";
 import type { IFileSystemClient } from "../interfaces/file-system-client.interface.js";
+import type { ComponentMetadata } from "../entities/metadata.entity.js";
 
 export interface AddComponentInput {
   name: string;
@@ -16,6 +17,7 @@ export interface AddComponentResult {
   writtenFiles: string[];
   entryFileAbsolutePath: string;
   missingDependencies: MissingDependency[];
+  metadata: ComponentMetadata;
 }
 
 export class AddComponentService {
@@ -27,11 +29,22 @@ export class AddComponentService {
   async execute(input: AddComponentInput): Promise<AddComponentResult> {
     const { metadata, files } = await this.storageClient.loadComponent(input.name);
 
-    // Se foi salvo como diretório (estratégia Folder), cria uma pasta com o nome
-    // do componente dentro do destino. Caso contrário, escreve o(s) arquivo(s) direto ali.
     const baseDestDir = metadata.isDirectory
       ? path.join(input.destinationDirAbsolutePath, metadata.name)
       : input.destinationDirAbsolutePath;
+
+    if (metadata.structureOnly) {
+      await this.fsClient.ensureDir(baseDestDir);
+      for (const relDir of metadata.files) {
+        await this.fsClient.ensureDir(path.join(baseDestDir, relDir));
+      }
+      return {
+        writtenFiles: [],
+        entryFileAbsolutePath: "",
+        missingDependencies: [],
+        metadata,
+      };
+    }
 
     const writtenFiles: string[] = [];
     for (const file of files) {
@@ -55,6 +68,7 @@ export class AddComponentService {
       writtenFiles,
       entryFileAbsolutePath: path.join(baseDestDir, metadata.entryFile),
       missingDependencies,
+      metadata,
     };
   }
 }
