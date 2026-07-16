@@ -6,11 +6,14 @@
   "bin": {
     "lumini": "bin/lumini.js"
   },
+  "files": [
+    "bin"
+  ],
   "scripts": {
     "dev:save": "tsx src/presentation/cli.ts save",
     "dev:add": "tsx src/presentation/cli.ts add",
     "dev:list": "tsx src/presentation/cli.ts list",
-    "build": "tsc -p tsconfig.json",
+    "build": "tsc -p tsconfig.json && node esbuild.config.js",
     "start": "node bin/lumini.js",
     "typecheck": "tsc --noEmit"
   },
@@ -34,6 +37,7 @@
     "@types/fs-extra": "^11.0.4",
     "@types/inquirer": "^9.0.7",
     "@types/node": "^20.14.9",
+    "esbuild": "^0.28.1",
     "tsx": "^4.16.2",
     "typescript": "^5.5.3"
   },
