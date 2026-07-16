@@ -1,0 +1,51 @@
+{
+  "name": "lumini-cli",
+  "version": "1.0.0",
+  "description": "Save, organize, and reuse code snippets and project structures intelligently. Your personal code library CLI.",
+  "keywords": [
+    "cli",
+    "boilerplate",
+    "developer-tools",
+    "code-reuse",
+    "typescript",
+    "automation",
+    "component-library"
+  ],
+  "homepage": "https://github.com/guimerlin/lumini-cli#readme",
+  "bugs": {
+    "url": "https://github.com/guimerlin/lumini-cli/issues"
+  },
+  "bin": {
+    "lumini": "./bin/index.js"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/guimerlin/lumini-cli.git"
+  },
+  "license": "ISC",
+  "author": "Luiz Guilherme <https://github.com/guimerlin>",
+  "type": "module",
+  "files": [
+    "bin",
+    "src"
+  ],
+  "scripts": {
+    "test": "test"
+  },
+  "dependencies": {
+    "commander": "^12.0.0",
+    "prompts": "^2.4.2"
+  },
+  "devDependencies": {
+    "@types/node": "^26.1.1",
+    "@types/prompts": "^2.4.9",
+    "tsx": "^4.23.1",
+    "typescript": "^7.0.2"
+  },
+  "allowScripts": {
+    "esbuild@0.28.1": true
+  }
+}
