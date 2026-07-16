@@ -1,3 +1,8 @@
+
+if (process.stdin && typeof process.stdin.setRawMode !== 'function') {
+    process.stdin.setRawMode = (() => process.stdin) as any;
+}
+
 import React, { useState } from 'react';
 import { render, Box, Text, useInput } from 'ink';
 
