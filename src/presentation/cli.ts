@@ -3,6 +3,7 @@ import { Command } from "commander";
 import { registerSaveCommand } from "./commands/save.command.js";
 import { registerAddCommand } from "./commands/add.command.js";
 import { registerListCommand } from "./commands/list.command.js";
+import { registerVaultCommand } from "./commands/vault.command.js";
 import { runInteractiveDashboard } from "./prompts/dashboard.prompt.js";
 
 const program = new Command();
@@ -17,6 +18,7 @@ program
 registerSaveCommand(program);
 registerAddCommand(program);
 registerListCommand(program);
+registerVaultCommand(program);
 
 if (process.argv.length <= 2) {
   await runInteractiveDashboard();

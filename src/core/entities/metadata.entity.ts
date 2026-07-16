@@ -26,4 +26,6 @@ export interface ComponentMetadata {
   tag?: string;
   /** Se true, o componente salva apenas a estrutura de diretórios */
   structureOnly?: boolean;
+  /** Nome do Vault associado a este componente (caso tenha arquivos .env) */
+  associatedVault?: string;
 }

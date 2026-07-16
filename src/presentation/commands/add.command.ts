@@ -5,12 +5,19 @@ import { FileSystemClient } from "../../infrastructure/clients/file-system.clien
 import { StorageClient } from "../../infrastructure/clients/storage.client.js";
 import { AddComponentService } from "../../core/services/add-component.service.js";
 import { ConfigService } from "../../core/services/config.service.js";
+import { VaultService } from "../../core/services/vault.service.js";
 import {
   askConfirmInstallDeps,
   askDestination,
   askConfirmOverwrite,
   askInitConfig,
 } from "../prompts/add.prompt.js";
+import {
+  askImportLinkedVault,
+  askLinkedVaultImportType,
+  askSelectVaultKeys,
+  runVaultImportFlow,
+} from "../prompts/vault-import.prompt.js";
 import fs from "fs-extra";
 
 export function registerAddCommand(program: Command): void {
@@ -93,6 +100,52 @@ export function registerAddCommand(program: Command): void {
           await configService.write(updatedConfig);
         }
         await configService.registerImport(name, result.metadata.tag, result.writtenFiles);
+
+        if (result.metadata.associatedVault) {
+          const vaultName = result.metadata.associatedVault;
+          const vaultService = new VaultService(fsClient);
+          const vaults = await vaultService.listVaults();
+          const targetVault = vaults.find((v) => v.name === vaultName);
+          
+          if (targetVault) {
+            let shouldImport = options.yes || options.default;
+            if (!shouldImport) {
+              shouldImport = await askImportLinkedVault(vaultName);
+            }
+
+            if (shouldImport) {
+              let varsToImport = targetVault.variables;
+              const config = await configService.read();
+              const alreadyImportedKeys = config.importedVaults?.[vaultName] ?? [];
+
+              if (!options.yes && !options.default) {
+                const importType = await askLinkedVaultImportType();
+                if (importType === "select") {
+                  const selectedKeys = await askSelectVaultKeys(targetVault.variables, alreadyImportedKeys);
+                  varsToImport = {};
+                  for (const key of selectedKeys) {
+                    varsToImport[key] = targetVault.variables[key] as string;
+                  }
+                }
+              }
+
+              if (Object.keys(varsToImport).length > 0) {
+                const targetEnvPath = path.resolve(process.cwd(), ".env");
+                const success = await runVaultImportFlow(
+                  vaultName,
+                  varsToImport,
+                  targetEnvPath,
+                  configService,
+                  vaultService,
+                  options.yes || options.default,
+                );
+                if (success) {
+                  console.log(chalk.green(`[Vault] Successfully imported variables from vault "${vaultName}" into project's .env file.`));
+                }
+              }
+            }
+          }
+        }
 
         if (result.missingDependencies.length > 0) {
           const depNames = result.missingDependencies.map((d) => d.name);

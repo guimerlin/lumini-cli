@@ -2,6 +2,22 @@
 
 ## Ideias
 
+### Comando Delete para Componentes Importados
+- due: 2026-07-25
+- tags: [core, utilitarios]
+- priority: medium
+- workload: Normal
+- defaultExpanded: false
+- steps:
+  - [ ] Criar comando 'delete' no commander (delete.command.ts)
+  - [ ] Ler arquivo de configuração local '.lumini' para buscar o componente importado
+  - [ ] Remover os arquivos associados ao componente do sistema de arquivos do projeto
+  - [ ] Atualizar o arquivo '.lumini' removendo o registro do componente importado
+
+```md
+Permite a remoção limpa de um componente previamente importado no projeto atual usando o comando `lumini delete <nome>`. O comando consulta as anotações do arquivo `.lumini` para identificar os arquivos correspondentes e excluí-los com segurança do disco.
+```
+
 ## Fila
 
 ### Tradução para Inglês e Estilização Visual

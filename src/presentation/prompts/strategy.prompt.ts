@@ -3,7 +3,7 @@ import type { SaveStrategy } from "../../core/entities/metadata.entity.js";
 import chalk from "chalk";
 
 export async function askStrategy(hasLocalImports: boolean, isDir: boolean): Promise<SaveStrategy> {
-  const icon = isDir ? chalk.bold.blue("📁 ") : chalk.bold.cyan("📄 ");
+  const icon = isDir ? chalk.bold.blue("[Folder] ") : chalk.bold.cyan("[File] ");
   const { strategy } = await inquirer.prompt<{ strategy: SaveStrategy }>([
     {
       type: "list",
@@ -38,7 +38,7 @@ export async function askStrategy(hasLocalImports: boolean, isDir: boolean): Pro
 }
 
 export async function askComponentName(defaultName: string, isDir: boolean): Promise<string> {
-  const icon = isDir ? chalk.bold.blue("📁 ") : chalk.bold.cyan("📄 ");
+  const icon = isDir ? chalk.bold.blue("[Folder] ") : chalk.bold.cyan("[File] ");
   const { name } = await inquirer.prompt<{ name: string }>([
     {
       type: "input",
@@ -53,7 +53,7 @@ export async function askComponentName(defaultName: string, isDir: boolean): Pro
 }
 
 export async function askTag(existingTags: string[], isDir: boolean): Promise<string> {
-  const icon = isDir ? chalk.bold.blue("📁 ") : chalk.bold.cyan("📄 ");
+  const icon = isDir ? chalk.bold.blue("[Folder] ") : chalk.bold.cyan("[File] ");
   const choices = [
     { name: chalk.green("+ Create a new tag"), value: "__create_new__" },
     { name: chalk.dim("No tag (save to _general)"), value: "_general" },
@@ -99,7 +99,7 @@ export async function askEnvVaultOption(envFilename: string): Promise<"vault" | 
     {
       type: "list",
       name: "option",
-      prefix: chalk.bold.yellow("🔒 "),
+      prefix: chalk.bold.yellow("[Vault] "),
       message: chalk.bold(`We found environment variables in "${envFilename}". How would you like to handle it?`),
       choices: [
         {
@@ -125,7 +125,7 @@ export async function askVaultName(defaultName: string): Promise<string> {
     {
       type: "input",
       name: "vaultName",
-      prefix: chalk.bold.yellow("🔒 "),
+      prefix: chalk.bold.yellow("[Vault] "),
       message: chalk.bold("Enter the name for this vault:"),
       default: defaultName,
       validate: (value: string) => {
@@ -147,7 +147,7 @@ export async function askSaveEnvChoice(envFilename: string, isFolder: boolean): 
     {
       type: "list",
       name: "choice",
-      prefix: chalk.bold.yellow("🔒 "),
+      prefix: chalk.bold.yellow("[Vault] "),
       message: chalk.bold(`We found only environment variables in ${targetDesc}. How would you like to save?`),
       choices: [
         {

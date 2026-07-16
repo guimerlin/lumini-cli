@@ -13,6 +13,7 @@ export interface LuminiConfig {
       importedAt: string;
     }
   >;
+  importedVaults?: Record<string, string[]>;
 }
 
 export class ConfigService {
@@ -50,6 +51,19 @@ export class ConfigService {
       files: files.map((f) => path.relative(process.cwd(), f)),
       importedAt: new Date().toISOString(),
     };
+    await this.write(config);
+  }
+
+  async registerVaultImport(vaultName: string, keys: string[]): Promise<void> {
+    const config = await this.read();
+    config.importedVaults = config.importedVaults ?? {};
+    config.importedVaults[vaultName] = config.importedVaults[vaultName] ?? [];
+    
+    for (const key of keys) {
+      if (!config.importedVaults[vaultName].includes(key)) {
+        config.importedVaults[vaultName].push(key);
+      }
+    }
     await this.write(config);
   }
 }

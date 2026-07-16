@@ -13,6 +13,12 @@ import {
   askConfirmInstallDeps,
   askConfirmOverwrite,
 } from "./add.prompt.js";
+import {
+  askImportLinkedVault,
+  askLinkedVaultImportType,
+  askSelectVaultKeys,
+  runVaultImportFlow,
+} from "./vault-import.prompt.js";
 import fs from "fs-extra";
 
 export async function runInteractiveDashboard(): Promise<void> {
@@ -24,23 +30,24 @@ export async function runInteractiveDashboard(): Promise<void> {
 
   while (true) {
     console.clear();
-    console.log(chalk.bold.cyan("\n======================================="));
-    console.log(chalk.bold.magenta("           LUMINI CLI DASHBOARD        "));
-    console.log(chalk.bold.cyan("=======================================\n"));
+    console.log(chalk.bold.cyan("┌──────────────────────────────────────────────┐"));
+    console.log(chalk.bold.cyan("│             L U M I N I   C L I              │"));
+    console.log(chalk.bold.cyan("│                   Dashboard                  │"));
+    console.log(chalk.bold.cyan("└──────────────────────────────────────────────┘\n"));
 
-    // List Vaults with masked values
+    // List Vaults
     const vaults = await vaultService.listVaults();
     if (vaults.length > 0) {
-      console.log(chalk.bold.yellow("🔒  Vaults:"));
+      console.log(chalk.bold.yellow("[Vaults]"));
       for (const vault of vaults) {
-        console.log(`  ${chalk.bold(vault.name)}:`);
+        console.log(`  * ${chalk.bold(vault.name)}:`);
         for (const key of Object.keys(vault.variables)) {
-          console.log(`    ${key}=******`);
+          console.log(`    - ${key}=******`);
         }
       }
       console.log();
     } else {
-      console.log(chalk.dim("🔒  No vaults stored yet.\n"));
+      console.log(chalk.dim("  No Vaults stored yet.\n"));
     }
 
     const components = await storageClient.list();
@@ -49,11 +56,11 @@ export async function runInteractiveDashboard(): Promise<void> {
       {
         type: "list",
         name: "choice",
-        message: chalk.bold("Select an action:"),
+        message: chalk.bold("Select an option:"),
         choices: [
-          { name: `📦  Manage Components (${components.length} saved)`, value: "components" },
-          { name: `🔒  Manage Vaults (${vaults.length} stored)`, value: "vaults" },
-          { name: "❌  Exit", value: "exit" },
+          { name: `Manage Components (${components.length} saved)`, value: "components" },
+          { name: `Manage Vaults (${vaults.length} stored)`, value: "vaults" },
+          { name: "Exit", value: "exit" },
         ],
       },
     ]);
@@ -66,7 +73,7 @@ export async function runInteractiveDashboard(): Promise<void> {
     if (choice === "components") {
       await manageComponentsFlow(components, storageClient, addService, configService, fsClient);
     } else if (choice === "vaults") {
-      await manageVaultsFlow(vaults, vaultService);
+      await manageVaultsFlow(vaults, vaultService, configService);
     }
   }
 }
@@ -111,9 +118,9 @@ async function manageComponentsFlow(
       name: "action",
       message: chalk.bold(`What would you like to do with the ${selected.length} selected component(s)?`),
       choices: [
-        { name: "📥  Add to project", value: "add" },
-        { name: "🗑️   Delete from library", value: "delete" },
-        { name: "↩️   Back", value: "back" },
+        { name: "Add to project", value: "add" },
+        { name: "Delete from library", value: "delete" },
+        { name: "Back", value: "back" },
       ],
     },
   ]);
@@ -136,7 +143,7 @@ async function manageComponentsFlow(
       for (const comp of selected) {
         await storageClient.remove(comp);
       }
-      console.log(chalk.green("\n✓ Component(s) deleted successfully."));
+      console.log(chalk.green("\n[Success] Component(s) deleted successfully."));
       await inquirer.prompt([{ type: "input", name: "ok", message: "Press Enter to continue..." }]);
     }
     return;
@@ -170,7 +177,7 @@ async function manageComponentsFlow(
         const result = await addService.execute({ name: fullName, destinationDirAbsolutePath });
 
         const displayTag = result.metadata.tag && result.metadata.tag !== "_general" ? `@[${result.metadata.tag}]/` : "";
-        console.log(chalk.green(`✓ "${displayTag}${result.metadata.name}" added.`));
+        console.log(chalk.green(`[Success] "${displayTag}${result.metadata.name}" added.`));
 
         if (result.metadata.structureOnly) {
           console.log(chalk.dim(`  Created folder structure.`));
@@ -180,7 +187,48 @@ async function manageComponentsFlow(
           }
         }
 
+        // Register configuration import
         await configService.registerImport(fullName, result.metadata.tag, result.writtenFiles);
+
+        // Check for linked Vault
+        if (result.metadata.associatedVault) {
+          const vaultName = result.metadata.associatedVault;
+          const vaultService = new VaultService(fsClient);
+          const vaults = await vaultService.listVaults();
+          const targetVault = vaults.find((v) => v.name === vaultName);
+          
+          if (targetVault) {
+            const shouldImport = await askImportLinkedVault(vaultName);
+            if (shouldImport) {
+              let varsToImport = targetVault.variables;
+              const alreadyImportedKeys = config.importedVaults?.[vaultName] ?? [];
+
+              const importType = await askLinkedVaultImportType();
+              if (importType === "select") {
+                const selectedKeys = await askSelectVaultKeys(targetVault.variables, alreadyImportedKeys);
+                varsToImport = {};
+                for (const key of selectedKeys) {
+                  varsToImport[key] = targetVault.variables[key] as string;
+                }
+              }
+
+              if (Object.keys(varsToImport).length > 0) {
+                const targetEnvPath = path.resolve(process.cwd(), ".env");
+                const success = await runVaultImportFlow(
+                  vaultName,
+                  varsToImport,
+                  targetEnvPath,
+                  configService,
+                  vaultService,
+                  false,
+                );
+                if (success) {
+                  console.log(chalk.green(`[Vault] Successfully imported variables from Vault "${vaultName}".`));
+                }
+              }
+            }
+          }
+        }
 
         if (result.missingDependencies.length > 0) {
           const depNames = result.missingDependencies.map((d) => d.name);
@@ -195,9 +243,9 @@ async function manageComponentsFlow(
                 pkgJson.dependencies[dep.name] = dep.version;
               }
               await fs.writeJson(pkgInfo.path, pkgJson, { spaces: 2 });
-              console.log(chalk.green(`✓ Added dependencies to package.json.`));
+              console.log(chalk.green(`[Success] Added dependencies to package.json.`));
             } else {
-              console.log(chalk.yellow("⚠ No package.json found; install manually:"));
+              console.log(chalk.yellow("[Warning] No package.json found; install manually:"));
               for (const dep of result.missingDependencies) {
                 console.log(chalk.dim(`  ${dep.name}: ${dep.version}`));
               }
@@ -205,7 +253,7 @@ async function manageComponentsFlow(
           }
         }
       } catch (error) {
-        console.error(chalk.red(`✗ Failed: ${(error as Error).message}`));
+        console.error(chalk.red(`[Error] Failed: ${(error as Error).message}`));
       }
     }
 
@@ -213,7 +261,11 @@ async function manageComponentsFlow(
   }
 }
 
-async function manageVaultsFlow(vaults: VaultInfo[], vaultService: VaultService): Promise<void> {
+async function manageVaultsFlow(
+  vaults: VaultInfo[],
+  vaultService: VaultService,
+  configService: ConfigService,
+): Promise<void> {
   if (vaults.length === 0) {
     console.log(chalk.yellow("\nNo vaults stored yet. Save a component containing a .env file first!"));
     await inquirer.prompt([{ type: "input", name: "ok", message: "Press Enter to return..." }]);
@@ -226,8 +278,8 @@ async function manageVaultsFlow(vaults: VaultInfo[], vaultService: VaultService)
       name: "vaultChoice",
       message: chalk.bold("Select a Vault to manage:"),
       choices: [
-        ...vaults.map((v) => ({ name: `🔒  ${v.name}`, value: v.name })),
-        { name: "↩️   Back", value: "back" },
+        ...vaults.map((v) => ({ name: `Vault: ${v.name}`, value: v.name })),
+        { name: "Back", value: "back" },
       ],
     },
   ]);
@@ -244,10 +296,10 @@ async function manageVaultsFlow(vaults: VaultInfo[], vaultService: VaultService)
       name: "vaultAction",
       message: chalk.bold(`Manage Vault "${selectedVault.name}":`),
       choices: [
-        { name: "📥  Import all variables to project .env", value: "import_all" },
-        { name: "🔍  Select specific variables to import", value: "import_some" },
-        { name: "🗑️   Delete Vault", value: "delete" },
-        { name: "↩️   Back", value: "back" },
+        { name: "Import all variables to project .env", value: "import_all" },
+        { name: "Select specific variables to import", value: "import_some" },
+        { name: "Delete Vault", value: "delete" },
+        { name: "Back", value: "back" },
       ],
     },
   ]);
@@ -268,7 +320,7 @@ async function manageVaultsFlow(vaults: VaultInfo[], vaultService: VaultService)
 
     if (confirm) {
       await vaultService.removeVault(selectedVault.name);
-      console.log(chalk.green("\n✓ Vault deleted successfully."));
+      console.log(chalk.green("\n[Success] Vault deleted successfully."));
       await inquirer.prompt([{ type: "input", name: "ok", message: "Press Enter to continue..." }]);
     }
     return;
@@ -279,17 +331,9 @@ async function manageVaultsFlow(vaults: VaultInfo[], vaultService: VaultService)
   if (vaultAction === "import_all") {
     varsToImport = selectedVault.variables;
   } else if (vaultAction === "import_some") {
-    const { selectedKeys } = await inquirer.prompt<{ selectedKeys: string[] }>([
-      {
-        type: "checkbox",
-        name: "selectedKeys",
-        message: chalk.bold("Select environment variables to import (Spacebar to toggle):"),
-        choices: Object.entries(selectedVault.variables).map(([k, v]) => ({
-          name: `${k}=${v.replace(/./g, "*")}`,
-          value: k,
-        })),
-      },
-    ]);
+    const config = await configService.read();
+    const alreadyImportedKeys = config.importedVaults?.[selectedVault.name] ?? [];
+    const selectedKeys = await askSelectVaultKeys(selectedVault.variables, alreadyImportedKeys);
 
     if (selectedKeys.length === 0) {
       return;
@@ -314,10 +358,19 @@ async function manageVaultsFlow(vaults: VaultInfo[], vaultService: VaultService)
 
   const targetEnvFile = path.resolve(process.cwd(), envPath);
   try {
-    await vaultService.mergeVariables(targetEnvFile, varsToImport);
-    console.log(chalk.green(`\n✓ Variables successfully imported to "${path.relative(process.cwd(), targetEnvFile)}".`));
+    const success = await runVaultImportFlow(
+      selectedVault.name,
+      varsToImport,
+      targetEnvFile,
+      configService,
+      vaultService,
+      false,
+    );
+    if (success) {
+      console.log(chalk.green(`\n[Success] Variables successfully imported to "${path.relative(process.cwd(), targetEnvFile)}".`));
+    }
   } catch (error) {
-    console.error(chalk.red(`\n✗ Failed to import: ${(error as Error).message}`));
+    console.error(chalk.red(`\n[Error] Failed to import: ${(error as Error).message}`));
   }
 
   await inquirer.prompt([{ type: "input", name: "ok", message: "Press Enter to continue..." }]);

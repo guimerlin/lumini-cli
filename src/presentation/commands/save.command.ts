@@ -200,6 +200,7 @@ export function registerSaveCommand(program: Command): void {
             tag,
             structureOnly: options.structure,
             excludeFiles,
+            associatedVault: savedVaultInfo?.name,
           });
 
           const displayTag = tag === "_general" ? "" : `@[${tag}]/`;

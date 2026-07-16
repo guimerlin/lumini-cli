@@ -11,6 +11,7 @@ export interface SaveComponentInput {
   tag?: string;
   structureOnly?: boolean;
   excludeFiles?: string[];
+  associatedVault?: string;
 }
 
 export class SaveComponentService {
@@ -41,6 +42,7 @@ export class SaveComponentService {
         sourcePath: input.targetAbsolutePath,
         tag: input.tag,
         structureOnly: true,
+        associatedVault: input.associatedVault,
       };
 
       await this.storageClient.saveComponent(metadata, []);
@@ -65,6 +67,7 @@ export class SaveComponentService {
       sourcePath: input.targetAbsolutePath,
       tag: input.tag,
       structureOnly: false,
+      associatedVault: input.associatedVault,
     };
 
     await this.storageClient.saveComponent(metadata, result.files);
