@@ -1,7 +1,7 @@
 {
   "name": "lumini-cli",
   "version": "0.1.0",
-  "description": "CLI para coletar, organizar e reutilizar componentes de código com resolução inteligente de dependências via AST.",
+  "description": "Save, organize, and reuse code snippets and project structures intelligently. Your personal code library CLI.",
   "type": "module",
   "bin": {
     "lumini": "bin/lumini.js"
@@ -9,13 +9,37 @@
   "files": [
     "bin"
   ],
+  "license": "MIT",
+  "author": {
+    "email": "guimerlin.dev@gmail.com",
+    "name": "Luiz Guilherme",
+    "url": "https://github.com/guimerlin"
+  },
+  "keywords": [
+    "cli",
+    "boilerplate",
+    "developer-tools",
+    "code-reuse",
+    "typescript",
+    "automation",
+    "component-library"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/guimerlin/lumini-cli"
+  },
+  "homepage": "https://github.com/guimerlin/lumini-cli#readme",
+  "bugs": {
+    "url": "https://github.com/guimerlin/lumini-cli/issues"
+  },
   "scripts": {
     "dev:save": "tsx src/presentation/cli.ts save",
     "dev:add": "tsx src/presentation/cli.ts add",
     "dev:list": "tsx src/presentation/cli.ts list",
     "build": "tsc -p tsconfig.json && node esbuild.config.js",
     "start": "node bin/lumini.js",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "prepublishOnly": "npm run build"
   },
   "engines": {
     "node": ">=18"
