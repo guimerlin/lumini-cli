@@ -1,84 +1,56 @@
-import inquirer from "inquirer";
 import chalk from "chalk";
 import path from "node:path";
 import fs from "fs-extra";
 import type { ConfigService } from "../../core/services/config.service.js";
 import type { VaultService } from "../../core/services/vault.service.js";
+import { askSelect, askMultiSelect, askConfirm } from "../ink/prompts.js";
 
 export async function askVariableConflict(
   key: string,
   currentValue: string,
   newValue: string,
 ): Promise<"overwrite" | "skip" | "cancel"> {
-  const { choice } = await inquirer.prompt<{ choice: "overwrite" | "skip" | "cancel" }>([
-    {
-      type: "list",
-      name: "choice",
-      prefix: chalk.bold.yellow("[Conflict] "),
-      message: chalk.bold(
-        `Variable "${key}" already exists with value "${currentValue.replace(/./g, "*")}" (new value: "${newValue.replace(/./g, "*")}"). What to do?`
-      ),
-      choices: [
-        { name: "Overwrite (replace old value)", value: "overwrite" },
-        { name: "Skip (keep old value)", value: "skip" },
-        { name: "Cancel entire operation", value: "cancel" },
-      ],
-    },
-  ]);
-  return choice;
+  return await askSelect(
+    `[Conflict] Variable "${key}" already exists with value "${currentValue.replace(/./g, "*")}" (new value: "${newValue.replace(/./g, "*")}"). What to do?`,
+    [
+      { label: "Overwrite (replace old value)", value: "overwrite" },
+      { label: "Skip (keep old value)", value: "skip" },
+      { label: "Cancel entire operation", value: "cancel" },
+    ]
+  ) as "overwrite" | "skip" | "cancel";
 }
 
 export async function askImportLinkedVault(vaultName: string): Promise<boolean> {
-  const { confirm } = await inquirer.prompt<{ confirm: boolean }>([
-    {
-      type: "confirm",
-      name: "confirm",
-      prefix: chalk.bold.cyan("[Vault] "),
-      message: chalk.bold(`This component is linked to Vault "${vaultName}". Would you like to import its variables?`),
-      default: true,
-    },
-  ]);
-  return confirm;
+  return await askConfirm(`[Vault] This component is linked to Vault "${vaultName}". Would you like to import its variables?`, true);
 }
 
 export async function askLinkedVaultImportType(): Promise<"all" | "select"> {
-  const { choice } = await inquirer.prompt<{ choice: "all" | "select" }>([
-    {
-      type: "list",
-      name: "choice",
-      prefix: chalk.bold.cyan("[Vault] "),
-      message: chalk.bold("How would you like to import the variables?"),
-      choices: [
-        { name: "Import all variables", value: "all" },
-        { name: "Select specific variables to import", value: "select" },
-      ],
-    },
-  ]);
-  return choice;
+  return await askSelect(
+    "[Vault] How would you like to import the variables?",
+    [
+      { label: "Import all variables", value: "all" },
+      { label: "Select specific variables to import", value: "select" },
+    ]
+  ) as "all" | "select";
 }
 
 export async function askSelectVaultKeys(
   variables: Record<string, string>,
   alreadyImportedKeys: string[],
 ): Promise<string[]> {
-  const { selectedKeys } = await inquirer.prompt<{ selectedKeys: string[] }>([
-    {
-      type: "checkbox",
-      name: "selectedKeys",
-      prefix: chalk.bold.cyan("[Vault] "),
-      message: chalk.bold("Select environment variables to import (Spacebar to toggle):"),
-      choices: Object.entries(variables).map(([k, v]) => {
-        const isImported = alreadyImportedKeys.includes(k);
-        const nameSuffix = isImported ? chalk.dim(" (already imported)") : "";
-        return {
-          name: `${k}=${v.replace(/./g, "*")}${nameSuffix}`,
-          value: k,
-          checked: false,
-        };
-      }),
-    },
-  ]);
-  return selectedKeys;
+  const choices = Object.entries(variables).map(([k, v]) => {
+    const isImported = alreadyImportedKeys.includes(k);
+    const nameSuffix = isImported ? " (already imported)" : "";
+    return {
+      label: `${k}=${v.replace(/./g, "*")}${nameSuffix}`,
+      value: k,
+    };
+  });
+
+  return await askMultiSelect(
+    "[Vault] Select environment variables to import (Spacebar to toggle):",
+    choices
+  );
 }
 
 export async function runVaultImportFlow(
@@ -92,7 +64,6 @@ export async function runVaultImportFlow(
   const config = await configService.read();
   const alreadyImported = config.importedVaults?.[vaultName] ?? [];
 
-  // If some keys are already imported, tell the user
   const overlap = Object.keys(variables).filter((k) => alreadyImported.includes(k));
   if (overlap.length > 0 && !yesMode) {
     console.log(
@@ -100,7 +71,6 @@ export async function runVaultImportFlow(
     );
   }
 
-  // Load existing variables in destEnvPath
   let existingVars: Record<string, string> = {};
   if (await fs.pathExists(destEnvPath)) {
     const content = await fs.readFile(destEnvPath, "utf-8");

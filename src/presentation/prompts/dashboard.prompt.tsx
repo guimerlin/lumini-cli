@@ -1,7 +1,6 @@
-import inquirer from "inquirer";
 import chalk from "chalk";
 import path from "node:path";
-import type { ComponentMetadata } from "../../core/entities/metadata.entity.js";
+import fs from "fs-extra";
 import type { VaultInfo } from "../../core/services/vault.service.js";
 import { StorageClient } from "../../infrastructure/clients/storage.client.js";
 import { FileSystemClient } from "../../infrastructure/clients/file-system.client.js";
@@ -19,7 +18,7 @@ import {
   askSelectVaultKeys,
   runVaultImportFlow,
 } from "./vault-import.prompt.js";
-import fs from "fs-extra";
+import { askSelect, askMultiSelect, askConfirm, askInput, printDashboardHeader } from "../ink/prompts.js";
 
 export async function runInteractiveDashboard(): Promise<void> {
   const fsClient = new FileSystemClient();
@@ -29,13 +28,8 @@ export async function runInteractiveDashboard(): Promise<void> {
   const vaultService = new VaultService(fsClient);
 
   while (true) {
-    console.clear();
-    console.log(chalk.bold.cyan("┌──────────────────────────────────────────────┐"));
-    console.log(chalk.bold.cyan("│             L U M I N I   C L I              │"));
-    console.log(chalk.bold.cyan("│                   Dashboard                  │"));
-    console.log(chalk.bold.cyan("└──────────────────────────────────────────────┘\n"));
+    printDashboardHeader();
 
-    // List Vaults
     const vaults = await vaultService.listVaults();
     if (vaults.length > 0) {
       console.log(chalk.bold.yellow("[Vaults]"));
@@ -51,35 +45,39 @@ export async function runInteractiveDashboard(): Promise<void> {
     }
 
     const components = await storageClient.list();
+    if (components.length > 0) {
+      console.log(chalk.bold.cyan("[Components]"));
+      for (const comp of components) {
+        const tagDisplay = comp.tag && comp.tag !== "_general" ? chalk.cyan(`@${comp.tag}/`) : "";
+        const struct = comp.structureOnly ? chalk.gray(" (structure-only)") : "";
+        console.log(`  * ${tagDisplay}${chalk.bold(comp.name)}${struct}`);
+      }
+      console.log();
+    } else {
+      console.log(chalk.dim("  No components saved yet.\n"));
+    }
 
-    const { choice } = await inquirer.prompt<{ choice: string }>([
-      {
-        type: "list",
-        name: "choice",
-        message: chalk.bold("Select an option:"),
-        choices: [
-          { name: `Manage Components (${components.length} saved)`, value: "components" },
-          { name: `Manage Vaults (${vaults.length} stored)`, value: "vaults" },
-          { name: "Exit", value: "exit" },
-        ],
-      },
+    const action = await askSelect("Select an action:", [
+      { label: "Manage Components", value: "components" },
+      { label: "Manage Vaults", value: "vaults" },
+      { label: "Exit", value: "exit" },
     ]);
 
-    if (choice === "exit") {
-      console.log(chalk.cyan("\nGoodbye!"));
+    if (action === "exit") {
+      console.log(chalk.cyan("Goodbye!"));
       break;
     }
 
-    if (choice === "components") {
+    if (action === "components") {
       await manageComponentsFlow(components, storageClient, addService, configService, fsClient);
-    } else if (choice === "vaults") {
+    } else if (action === "vaults") {
       await manageVaultsFlow(vaults, vaultService, configService);
     }
   }
 }
 
 async function manageComponentsFlow(
-  components: ComponentMetadata[],
+  components: any[],
   storageClient: StorageClient,
   addService: AddComponentService,
   configService: ConfigService,
@@ -87,64 +85,48 @@ async function manageComponentsFlow(
 ): Promise<void> {
   if (components.length === 0) {
     console.log(chalk.yellow("\nNo components saved yet. Save a component first!"));
-    await inquirer.prompt([{ type: "input", name: "ok", message: "Press Enter to return..." }]);
+    await askInput("Press Enter to return...");
     return;
   }
 
-  // Multi-select components
-  const { selected } = await inquirer.prompt<{ selected: string[] }>([
-    {
-      type: "checkbox",
-      name: "selected",
-      message: chalk.bold("Select components (Spacebar to toggle, Enter to confirm):"),
-      choices: components.map((c) => {
-        const tagPrefix = c.tag && c.tag !== "_general" ? `@${c.tag}/` : "";
-        const suffix = c.structureOnly ? " (structure-only)" : "";
-        return {
-          name: `${tagPrefix}${c.name}${suffix}`,
-          value: c.tag && c.tag !== "_general" ? `@${c.tag}/${c.name}` : c.name,
-        };
-      }),
-    },
-  ]);
+  const selected = await askMultiSelect(
+    "Select components:",
+    components.map((c) => {
+      const tagPrefix = c.tag && c.tag !== "_general" ? `@${c.tag}/` : "";
+      const suffix = c.structureOnly ? " (structure-only)" : "";
+      return {
+        label: `${tagPrefix}${c.name}${suffix}`,
+        value: c.tag && c.tag !== "_general" ? `@${c.tag}/${c.name}` : c.name,
+      };
+    })
+  );
 
   if (selected.length === 0) {
     return;
   }
 
-  const { action } = await inquirer.prompt<{ action: string }>([
-    {
-      type: "list",
-      name: "action",
-      message: chalk.bold(`What would you like to do with the ${selected.length} selected component(s)?`),
-      choices: [
-        { name: "Add to project", value: "add" },
-        { name: "Delete from library", value: "delete" },
-        { name: "Back", value: "back" },
-      ],
-    },
-  ]);
+  const action = await askSelect(
+    `What would you like to do with the ${selected.length} selected component(s)?`,
+    [
+      { label: "Add to project", value: "add" },
+      { label: "Delete from library", value: "delete" },
+      { label: "Back", value: "back" },
+    ]
+  );
 
   if (action === "back") {
     return;
   }
 
   if (action === "delete") {
-    const { confirm } = await inquirer.prompt<{ confirm: boolean }>([
-      {
-        type: "confirm",
-        name: "confirm",
-        message: chalk.bold.red(`Are you sure you want to permanently delete these ${selected.length} component(s)?`),
-        default: false,
-      },
-    ]);
+    const confirm = await askConfirm(`Are you sure you want to permanently delete these ${selected.length} component(s)?`, false);
 
     if (confirm) {
       for (const comp of selected) {
         await storageClient.remove(comp);
       }
       console.log(chalk.green("\n[Success] Component(s) deleted successfully."));
-      await inquirer.prompt([{ type: "input", name: "ok", message: "Press Enter to continue..." }]);
+      await askInput("Press Enter to continue...");
     }
     return;
   }
@@ -165,7 +147,6 @@ async function manageComponentsFlow(
         }
       }
 
-      // Ask folder
       let dest = config.defaultImportPath;
       if (!dest) {
         dest = await askDestination(".");
@@ -187,10 +168,8 @@ async function manageComponentsFlow(
           }
         }
 
-        // Register configuration import
         await configService.registerImport(fullName, result.metadata.tag, result.writtenFiles);
 
-        // Check for linked Vault
         if (result.metadata.associatedVault) {
           const vaultName = result.metadata.associatedVault;
           const vaultService = new VaultService(fsClient);
@@ -257,7 +236,7 @@ async function manageComponentsFlow(
       }
     }
 
-    await inquirer.prompt([{ type: "input", name: "ok", message: "\nPress Enter to continue..." }]);
+    await askInput("Press Enter to continue...");
   }
 }
 
@@ -268,21 +247,17 @@ async function manageVaultsFlow(
 ): Promise<void> {
   if (vaults.length === 0) {
     console.log(chalk.yellow("\nNo vaults stored yet. Save a component containing a .env file first!"));
-    await inquirer.prompt([{ type: "input", name: "ok", message: "Press Enter to return..." }]);
+    await askInput("Press Enter to return...");
     return;
   }
 
-  const { vaultChoice } = await inquirer.prompt<{ vaultChoice: string }>([
-    {
-      type: "list",
-      name: "vaultChoice",
-      message: chalk.bold("Select a Vault to manage:"),
-      choices: [
-        ...vaults.map((v) => ({ name: `Vault: ${v.name}`, value: v.name })),
-        { name: "Back", value: "back" },
-      ],
-    },
-  ]);
+  const vaultChoice = await askSelect(
+    "Select a Vault to manage:",
+    [
+      ...vaults.map((v) => ({ label: `Vault: ${v.name}`, value: v.name })),
+      { label: "Back", value: "back" },
+    ]
+  );
 
   if (vaultChoice === "back") {
     return;
@@ -290,38 +265,27 @@ async function manageVaultsFlow(
 
   const selectedVault = vaults.find((v) => v.name === vaultChoice)!;
 
-  const { vaultAction } = await inquirer.prompt<{ vaultAction: string }>([
-    {
-      type: "list",
-      name: "vaultAction",
-      message: chalk.bold(`Manage Vault "${selectedVault.name}":`),
-      choices: [
-        { name: "Import all variables to project .env", value: "import_all" },
-        { name: "Select specific variables to import", value: "import_some" },
-        { name: "Delete Vault", value: "delete" },
-        { name: "Back", value: "back" },
-      ],
-    },
-  ]);
+  const vaultAction = await askSelect(
+    `Manage Vault "${selectedVault.name}":`,
+    [
+      { label: "Import all variables to project .env", value: "import_all" },
+      { label: "Select specific variables to import", value: "import_some" },
+      { label: "Delete Vault", value: "delete" },
+      { label: "Back", value: "back" },
+    ]
+  );
 
   if (vaultAction === "back") {
     return;
   }
 
   if (vaultAction === "delete") {
-    const { confirm } = await inquirer.prompt<{ confirm: boolean }>([
-      {
-        type: "confirm",
-        name: "confirm",
-        message: chalk.bold.red(`Are you sure you want to permanently delete Vault "${selectedVault.name}"?`),
-        default: false,
-      },
-    ]);
+    const confirm = await askConfirm(`Are you sure you want to permanently delete Vault "${selectedVault.name}"?`, false);
 
     if (confirm) {
       await vaultService.removeVault(selectedVault.name);
       console.log(chalk.green("\n[Success] Vault deleted successfully."));
-      await inquirer.prompt([{ type: "input", name: "ok", message: "Press Enter to continue..." }]);
+      await askInput("Press Enter to continue...");
     }
     return;
   }
@@ -347,14 +311,7 @@ async function manageVaultsFlow(
     }
   }
 
-  const { envPath } = await inquirer.prompt<{ envPath: string }>([
-    {
-      type: "input",
-      name: "envPath",
-      message: chalk.bold("Destination file path:"),
-      default: ".env",
-    },
-  ]);
+  const envPath = await askInput("Destination file path:", ".env");
 
   const targetEnvFile = path.resolve(process.cwd(), envPath);
   try {
@@ -373,5 +330,5 @@ async function manageVaultsFlow(
     console.error(chalk.red(`\n[Error] Failed to import: ${(error as Error).message}`));
   }
 
-  await inquirer.prompt([{ type: "input", name: "ok", message: "Press Enter to continue..." }]);
+  await askInput("Press Enter to continue...");
 }
