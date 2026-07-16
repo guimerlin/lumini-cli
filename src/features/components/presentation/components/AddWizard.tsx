@@ -115,7 +115,8 @@ export function AddWizard({ componentsHook, vaultHook, configHook, initialCompon
     setDestPath(config.defaultImportPath || ".");
     
     // Check if already imported
-    const isAlreadyImported = config.importedComponents && comp.name in config.importedComponents;
+    const fullName = comp.tag && comp.tag !== "_general" ? `@${comp.tag}/${comp.name}` : comp.name;
+    const isAlreadyImported = config.importedComponents && fullName in config.importedComponents;
     if (isAlreadyImported) {
       setStep("CONFIRM_OVERWRITE");
     } else {
@@ -139,8 +140,12 @@ export function AddWizard({ componentsHook, vaultHook, configHook, initialCompon
       const destination = value || ".";
       const destAbsPath = path.resolve(process.cwd(), destination);
       
-      const result = await addComponent(activeComp.name, destAbsPath);
-      await registerImport(activeComp.name, result.metadata.tag, result.writtenFiles);
+      const componentFullName = activeComp.tag && activeComp.tag !== "_general"
+        ? `@${activeComp.tag}/${activeComp.name}`
+        : activeComp.name;
+
+      const result = await addComponent(componentFullName, destAbsPath);
+      await registerImport(componentFullName, result.metadata.tag, result.writtenFiles);
 
       const displayTag = result.metadata.tag && result.metadata.tag !== "_general" ? `@[${result.metadata.tag}]/` : "";
       let successMsg = `✓ "${displayTag}${result.metadata.name}" added successfully.`;
