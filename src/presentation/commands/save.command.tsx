@@ -1,28 +1,22 @@
 import path from "node:path";
 import chalk from "chalk";
 import { Command } from "commander";
-import { AstParserClient } from "../../infrastructure/parsers/ast-parser.client.js";
-import { FileSystemClient } from "../../infrastructure/clients/file-system.client.js";
-import { StorageClient } from "../../infrastructure/clients/storage.client.js";
-import { RawStrategy } from "../../core/services/strategies/raw.strategy.js";
-import { DepsStrategy } from "../../core/services/strategies/deps.strategy.js";
-import { BundleStrategy } from "../../core/services/strategies/bundle.strategy.js";
-import { FolderStrategy } from "../../core/services/strategies/folder.strategy.js";
-import { SaveComponentService } from "../../core/services/save-component.service.js";
-import { VaultService } from "../../core/services/vault.service.js";
-import {
-  askComponentName,
-  askStrategy,
-  askTag,
-  askEnvVaultOption,
-  askVaultName,
-  askSaveEnvChoice,
-} from "../prompts/strategy.prompt.js";
-import type { SaveStrategy } from "../../core/entities/metadata.entity.js";
+import { render } from "ink";
+import App from "../App.js";
+import { AstParserClient } from "../../shared/infrastructure/parsers/ast-parser.client.js";
+import { FileSystemClient } from "../../shared/infrastructure/clients/file-system.client.js";
+import { StorageClient } from "../../shared/infrastructure/clients/storage.client.js";
+import { RawStrategy } from "../../features/components/core/strategies/raw.strategy.js";
+import { DepsStrategy } from "../../features/components/core/strategies/deps.strategy.js";
+import { BundleStrategy } from "../../features/components/core/strategies/bundle.strategy.js";
+import { FolderStrategy } from "../../features/components/core/strategies/folder.strategy.js";
+import { SaveComponentService } from "../../features/components/core/save-component.service.js";
+import { VaultService } from "../../features/vault/core/vault.service.js";
+import type { SaveStrategy } from "../../shared/core/entities/metadata.entity.js";
 
 export function registerSaveCommand(program: Command): void {
   program
-    .command("save <path>")
+    .command("save [path]")
     .description("Analyzes and saves a file or folder into the Lumini library")
     .option("-n, --name <name>", "name of the component in the library (default: file/folder basename)")
     .option(
@@ -34,9 +28,23 @@ export function registerSaveCommand(program: Command): void {
     .option("-d, --default", "bypass all interactive prompts and run with default settings")
     .action(
       async (
-        caminho: string,
-        options: { name?: string; strategy?: string; tag?: string; structure?: boolean; default?: boolean },
+        caminho?: string,
+        options: { name?: string; strategy?: string; tag?: string; structure?: boolean; default?: boolean } = {},
       ) => {
+        // 1. Interactive Mode Check
+        if (!options.default && !options.strategy && !options.tag) {
+          const { waitUntilExit } = render(<App initialScreen="SAVE_WIZARD" targetArg={caminho} />);
+          await waitUntilExit();
+          return;
+        }
+
+        // 2. Direct CLI Non-interactive Mode (only executes if path is provided)
+        if (!caminho) {
+          console.error(chalk.red("✗ Path is required in non-interactive mode."));
+          process.exitCode = 1;
+          return;
+        }
+
         const targetAbsolutePath = path.resolve(process.cwd(), caminho);
 
         const astParser = new AstParserClient();
@@ -72,18 +80,9 @@ export function registerSaveCommand(program: Command): void {
           ? path.basename(targetAbsolutePath)
           : path.basename(targetAbsolutePath, path.extname(targetAbsolutePath));
 
-        let chosenSaveType: "vault" | "library" = "library";
         if (isEnvOnly) {
-          if (options.default) {
-            chosenSaveType = "vault";
-          } else {
-            const firstEnvName = path.basename(envFilesList[0] || ".env");
-            chosenSaveType = await askSaveEnvChoice(firstEnvName, isDir);
-          }
-        }
-
-        if (chosenSaveType === "vault") {
-          const vaultName = options.name ?? (options.default ? defaultName : await askVaultName(defaultName));
+          // Vault non-interactive path
+          const vaultName = options.name ?? defaultName;
           const combinedVars: Record<string, string> = {};
           for (const file of envFilesList) {
             const content = await fsClient.readFile(file);
@@ -98,8 +97,8 @@ export function registerSaveCommand(program: Command): void {
           return;
         }
 
-        // Proceed to save as regular component
-        const name = options.name ?? (options.default ? defaultName : await askComponentName(defaultName, isDir));
+        // Proceed to save as regular component in direct mode
+        const name = options.name ?? defaultName;
 
         // Scan for .env files within the component target to potentially vault them (only if not already vaulted)
         let envFileAbsPath: string | null = null;
@@ -112,28 +111,10 @@ export function registerSaveCommand(program: Command): void {
         }
 
         let excludeFiles: string[] = [];
-        let savedVaultInfo: { name: string; file: string } | null = null;
 
-        if (envFileAbsPath) {
-          const envFilename = path.basename(envFileAbsPath);
-          const relativeEnvPath = isDir ? path.relative(targetAbsolutePath, envFileAbsPath) : envFilename;
-
-          if (options.default) {
-            // Keep it in component
-          } else {
-            const vaultOption = await askEnvVaultOption(envFilename);
-            if (vaultOption === "vault") {
-              const vaultName = await askVaultName(options.name ?? defaultName);
-              const envContent = await fsClient.readFile(envFileAbsPath);
-              const parsedVars = vaultService.parseEnv(envContent);
-              
-              await vaultService.saveVault(vaultName, parsedVars);
-              excludeFiles.push(relativeEnvPath);
-              savedVaultInfo = { name: vaultName, file: envFilename };
-            } else if (vaultOption === "ignore") {
-              excludeFiles.push(relativeEnvPath);
-            }
-          }
+        if (envFileAbsPath && options.default) {
+          // If default flag is passed, we default to saving the env inside the component code (no vault extraction)
+          // to bypass prompts
         }
 
         // Check if there are JS/TS files
@@ -163,21 +144,11 @@ export function registerSaveCommand(program: Command): void {
           (options.strategy as SaveStrategy | undefined) ??
           (!hasJsTs
             ? "raw"
-            : options.default
-            ? hasLocalImports
-              ? "folder"
-              : "raw"
-            : await askStrategy(hasLocalImports, isDir));
+            : hasLocalImports
+            ? "folder"
+            : "raw");
 
-        let tag = options.tag;
-        if (!tag && !options.default) {
-          const components = await storageClient.list();
-          const existingTags = [...new Set(components.map((c) => c.tag).filter(Boolean))] as string[];
-          tag = await askTag(existingTags, isDir);
-        }
-        if (!tag) {
-          tag = "_general";
-        }
+        let tag = options.tag || "_general";
 
         const saveService = new SaveComponentService(
           {
@@ -200,7 +171,7 @@ export function registerSaveCommand(program: Command): void {
             tag,
             structureOnly: options.structure,
             excludeFiles,
-            associatedVault: savedVaultInfo?.name,
+            associatedVault: undefined,
           });
 
           const displayTag = tag === "_general" ? "" : `@[${tag}]/`;
@@ -214,14 +185,6 @@ export function registerSaveCommand(program: Command): void {
             if (externalDeps.length > 0) {
               console.log(chalk.dim(`  External dependencies: ${externalDeps.join(", ")}`));
             }
-          }
-
-          if (savedVaultInfo) {
-            console.log(
-              chalk.green(
-                `✓ Environment variables from "${savedVaultInfo.file}" successfully saved to Vault "${savedVaultInfo.name}".`,
-              ),
-            );
           }
         } catch (error) {
           console.error(chalk.red(`✗ Failed to save: ${(error as Error).message}`));

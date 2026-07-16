@@ -1,7 +1,7 @@
 import path from "node:path";
-import type { ISaveStrategy, StrategyResult } from "../../interfaces/save-strategy.interface.js";
-import type { IAstParser } from "../../interfaces/ast-parser.interface.js";
-import type { IFileSystemClient } from "../../interfaces/file-system-client.interface.js";
+import type { ISaveStrategy, StrategyResult } from "../../../../shared/core/interfaces/save-strategy.interface.js";
+import type { IAstParser } from "../../../../shared/core/interfaces/ast-parser.interface.js";
+import type { IFileSystemClient } from "../../../../shared/core/interfaces/file-system-client.interface.js";
 import { DependencyGraphService } from "../dependency-graph.service.js";
 
 /**

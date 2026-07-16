@@ -3,3 +3,13 @@ node_modules
 package-lock.json
 tests/**/*
 dist/**/*
+
+# oh-my-agent runtime (local artifacts — do not commit)
+.agents
+.lumini
+.serena
+.antigravitycli/
+.agents/results/
+.agents/state/
+.agents/backup/
+.migration-backup/

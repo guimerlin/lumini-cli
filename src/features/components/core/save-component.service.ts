@@ -1,7 +1,7 @@
-import type { ISaveStrategy } from "../interfaces/save-strategy.interface.js";
-import type { IStorageClient } from "../interfaces/storage-client.interface.js";
-import type { IFileSystemClient } from "../interfaces/file-system-client.interface.js";
-import type { ComponentMetadata, SaveStrategy } from "../entities/metadata.entity.js";
+import type { ISaveStrategy } from "../../../shared/core/interfaces/save-strategy.interface.js";
+import type { IStorageClient } from "../../../shared/core/interfaces/storage-client.interface.js";
+import type { IFileSystemClient } from "../../../shared/core/interfaces/file-system-client.interface.js";
+import type { ComponentMetadata, SaveStrategy } from "../../../shared/core/entities/metadata.entity.js";
 import path from "node:path";
 
 export interface SaveComponentInput {

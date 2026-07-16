@@ -1,33 +1,37 @@
 import path from "node:path";
 import chalk from "chalk";
 import { Command } from "commander";
-import { FileSystemClient } from "../../infrastructure/clients/file-system.client.js";
-import { StorageClient } from "../../infrastructure/clients/storage.client.js";
-import { AddComponentService } from "../../core/services/add-component.service.js";
-import { ConfigService } from "../../core/services/config.service.js";
-import { VaultService } from "../../core/services/vault.service.js";
-import {
-  askConfirmInstallDeps,
-  askDestination,
-  askConfirmOverwrite,
-  askInitConfig,
-} from "../prompts/add.prompt.js";
-import {
-  askImportLinkedVault,
-  askLinkedVaultImportType,
-  askSelectVaultKeys,
-  runVaultImportFlow,
-} from "../prompts/vault-import.prompt.js";
+import { render } from "ink";
+import App from "../App.js";
+import { FileSystemClient } from "../../shared/infrastructure/clients/file-system.client.js";
+import { StorageClient } from "../../shared/infrastructure/clients/storage.client.js";
+import { AddComponentService } from "../../features/components/core/add-component.service.js";
+import { ConfigService } from "../../features/config/core/config.service.js";
+import { VaultService } from "../../features/vault/core/vault.service.js";
 import fs from "fs-extra";
 
 export function registerAddCommand(program: Command): void {
   program
-    .command("add <name>")
+    .command("add [name]")
     .description("Injects a previously saved component into the current directory")
     .option("-d, --dest <folder>", "destination folder")
     .option("-y, --yes", "auto-confirm prompts (like overwriting and dependency installation)")
     .option("--default", "bypass all interactive prompts and run with default settings")
-    .action(async (name: string, options: { dest?: string; yes?: boolean; default?: boolean }) => {
+    .action(async (name?: string, options: { dest?: string; yes?: boolean; default?: boolean } = {}) => {
+      // 1. Interactive Mode Check
+      if (!options.default && !options.yes) {
+        const { waitUntilExit } = render(<App initialScreen="ADD_WIZARD" targetArg={name} />);
+        await waitUntilExit();
+        return;
+      }
+
+      // 2. Direct CLI Non-interactive Mode (only executes if name is provided)
+      if (!name) {
+        console.error(chalk.red("✗ Component name is required in non-interactive mode."));
+        process.exitCode = 1;
+        return;
+      }
+
       const fsClient = new FileSystemClient();
       const storageClient = new StorageClient();
       const addService = new AddComponentService(storageClient, fsClient);
@@ -41,41 +45,16 @@ export function registerAddCommand(program: Command): void {
         return;
       }
 
-      let configExists = await configService.exists();
-      if (!configExists && !options.default && !options.yes) {
-        const init = await askInitConfig();
-        if (init) {
-          await configService.write({
-            defaultImportPath: options.dest ?? ".",
-            importedComponents: {},
-          });
-          configExists = true;
-          console.log(chalk.green("✓ Initialized .lumini configuration file in project root."));
-        }
-      }
-
+      const configExists = await configService.exists();
       const config = configExists ? await configService.read() : {};
 
       const isAlreadyImported = config.importedComponents && name in config.importedComponents;
-      if (isAlreadyImported && !options.yes && !options.default) {
-        const overwrite = await askConfirmOverwrite(name);
-        if (!overwrite) {
-          console.log(chalk.yellow("Aborted."));
-          return;
-        }
+      if (isAlreadyImported && !options.yes) {
+        console.log(chalk.yellow(`⚠ Component "${name}" is already imported. Bypass with --yes or run interactively.`));
+        return;
       }
 
-      let destination = options.dest;
-      if (!destination) {
-        if (config.defaultImportPath) {
-          destination = config.defaultImportPath;
-        } else if (options.default) {
-          destination = ".";
-        } else {
-          destination = await askDestination(".");
-        }
-      }
-
+      const destination = options.dest || config.defaultImportPath || ".";
       const destinationDirAbsolutePath = path.resolve(process.cwd(), destination);
 
       try {
@@ -101,6 +80,7 @@ export function registerAddCommand(program: Command): void {
         }
         await configService.registerImport(name, result.metadata.tag, result.writtenFiles);
 
+        // Vault Import logic
         if (result.metadata.associatedVault) {
           const vaultName = result.metadata.associatedVault;
           const vaultService = new VaultService(fsClient);
@@ -108,71 +88,43 @@ export function registerAddCommand(program: Command): void {
           const targetVault = vaults.find((v) => v.name === vaultName);
           
           if (targetVault) {
-            let shouldImport = options.yes || options.default;
-            if (!shouldImport) {
-              shouldImport = await askImportLinkedVault(vaultName);
-            }
-
-            if (shouldImport) {
-              let varsToImport = targetVault.variables;
-              const config = await configService.read();
-              const alreadyImportedKeys = config.importedVaults?.[vaultName] ?? [];
-
-              if (!options.yes && !options.default) {
-                const importType = await askLinkedVaultImportType();
-                if (importType === "select") {
-                  const selectedKeys = await askSelectVaultKeys(targetVault.variables, alreadyImportedKeys);
-                  varsToImport = {};
-                  for (const key of selectedKeys) {
-                    varsToImport[key] = targetVault.variables[key] as string;
-                  }
-                }
+            // In non-interactive mode with bypass flags, we auto-import all vault variables
+            const varsToImport = targetVault.variables;
+            if (Object.keys(varsToImport).length > 0) {
+              const targetEnvPath = path.resolve(process.cwd(), ".env");
+              let envContent = "";
+              if (await fsClient.exists(targetEnvPath)) {
+                envContent = await fsClient.readFile(targetEnvPath);
               }
-
-              if (Object.keys(varsToImport).length > 0) {
-                const targetEnvPath = path.resolve(process.cwd(), ".env");
-                const success = await runVaultImportFlow(
-                  vaultName,
-                  varsToImport,
-                  targetEnvPath,
-                  configService,
-                  vaultService,
-                  options.yes || options.default,
-                );
-                if (success) {
-                  console.log(chalk.green(`[Vault] Successfully imported variables from vault "${vaultName}" into project's .env file.`));
-                }
-              }
+              const existingVars = vaultService.parseEnv(envContent);
+              const merged = { ...existingVars, ...varsToImport };
+              const outputContent = Object.entries(merged)
+                .map(([k, v]) => `${k}=${v}`)
+                .join("\n");
+              await fsClient.writeFile(targetEnvPath, outputContent);
+              await configService.registerVaultImport(vaultName, Object.keys(varsToImport));
+              console.log(chalk.green(`[Vault] Automatically imported variables from vault "${vaultName}" into project's .env file.`));
             }
           }
         }
 
+        // Install dependencies
         if (result.missingDependencies.length > 0) {
-          const depNames = result.missingDependencies.map((d) => d.name);
-          const shouldInstall = options.yes || options.default || (await askConfirmInstallDeps(depNames));
-
-          if (shouldInstall) {
-            const pkgInfo = await fsClient.findNearestPackageJson(destinationDirAbsolutePath);
-            if (pkgInfo) {
-              const pkgJson = await fs.readJson(pkgInfo.path);
-              pkgJson.dependencies = pkgJson.dependencies ?? {};
-              for (const dep of result.missingDependencies) {
-                pkgJson.dependencies[dep.name] = dep.version;
-              }
-              await fs.writeJson(pkgInfo.path, pkgJson, { spaces: 2 });
-              console.log(
-                chalk.green(`✓ Added missing dependency(ies) to package.json. Please run: npm/pnpm/yarn install`),
-              );
-            } else {
-              console.log(
-                chalk.yellow("⚠ No package.json found from destination path; install manually:"),
-              );
-              for (const dep of result.missingDependencies) {
-                console.log(chalk.dim(`  ${dep.name}: ${dep.version}`));
-              }
+          const pkgInfo = await fsClient.findNearestPackageJson(destinationDirAbsolutePath);
+          if (pkgInfo) {
+            const pkgJson = await fs.readJson(pkgInfo.path);
+            pkgJson.dependencies = pkgJson.dependencies ?? {};
+            for (const dep of result.missingDependencies) {
+              pkgJson.dependencies[dep.name] = dep.version;
             }
+            await fs.writeJson(pkgInfo.path, pkgJson, { spaces: 2 });
+            console.log(
+              chalk.green(`✓ Added missing dependency(ies) to package.json. Please run: npm/pnpm/yarn install`),
+            );
           } else {
-            console.log(chalk.yellow("⚠ Please remember to install dependencies manually:"));
+            console.log(
+              chalk.yellow("⚠ No package.json found from destination path; install manually:"),
+            );
             for (const dep of result.missingDependencies) {
               console.log(chalk.dim(`  ${dep.name}: ${dep.version}`));
             }

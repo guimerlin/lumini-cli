@@ -1,10 +1,10 @@
-#!/usr/bin/env node
 import { Command } from "commander";
 import { registerSaveCommand } from "./commands/save.command.js";
 import { registerAddCommand } from "./commands/add.command.js";
 import { registerListCommand } from "./commands/list.command.js";
 import { registerVaultCommand } from "./commands/vault.command.js";
-import { runInteractiveDashboard } from "./prompts/dashboard.prompt.js";
+import { render } from "ink";
+import App from "./App.js";
 
 const program = new Command();
 
@@ -21,7 +21,9 @@ registerListCommand(program);
 registerVaultCommand(program);
 
 if (process.argv.length <= 2) {
-  await runInteractiveDashboard();
+  const { waitUntilExit } = render(<App initialScreen="DASHBOARD" />);
+  await waitUntilExit();
 } else {
   await program.parseAsync(process.argv);
 }
+

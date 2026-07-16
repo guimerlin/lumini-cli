@@ -1,8 +1,8 @@
 import path from "node:path";
-import type { IAstParser } from "../interfaces/ast-parser.interface.js";
-import type { IFileSystemClient } from "../interfaces/file-system-client.interface.js";
-import type { ComponentNode } from "../entities/component-node.entity.js";
-import { extractPackageName, findVersionInPackageJson } from "../../utils/dependency-version.util.js";
+import type { IAstParser } from "../../../shared/core/interfaces/ast-parser.interface.js";
+import type { IFileSystemClient } from "../../../shared/core/interfaces/file-system-client.interface.js";
+import type { ComponentNode } from "../../../shared/core/entities/component-node.entity.js";
+import { extractPackageName, findVersionInPackageJson } from "../../../shared/utils/dependency-version.util.js";
 
 export interface DependencyGraphResult {
   /** Todos os arquivos locais alcançados a partir da entrada, incluindo a própria entrada. */

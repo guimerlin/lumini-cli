@@ -1,6 +1,6 @@
 import chalk from "chalk";
 import { Command } from "commander";
-import { StorageClient } from "../../infrastructure/clients/storage.client.js";
+import { StorageClient } from "../../shared/infrastructure/clients/storage.client.js";
 
 export function registerListCommand(program: Command): void {
   program

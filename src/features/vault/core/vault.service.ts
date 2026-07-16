@@ -1,6 +1,6 @@
 import os from "node:os";
 import path from "node:path";
-import type { IFileSystemClient } from "../interfaces/file-system-client.interface.js";
+import type { IFileSystemClient } from "../../../shared/core/interfaces/file-system-client.interface.js";
 
 const VAULT_ROOT = path.join(os.homedir(), ".lumini", "vault");
 

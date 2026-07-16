@@ -1,11 +1,11 @@
 import path from "node:path";
-import type { ISaveStrategy, StrategyResult } from "../../interfaces/save-strategy.interface.js";
-import type { IAstParser } from "../../interfaces/ast-parser.interface.js";
-import type { IFileSystemClient } from "../../interfaces/file-system-client.interface.js";
+import type { ISaveStrategy, StrategyResult } from "../../../../shared/core/interfaces/save-strategy.interface.js";
+import type { IAstParser } from "../../../../shared/core/interfaces/ast-parser.interface.js";
+import type { IFileSystemClient } from "../../../../shared/core/interfaces/file-system-client.interface.js";
 import { DependencyGraphService } from "../dependency-graph.service.js";
-import type { ComponentNode } from "../../entities/component-node.entity.js";
-import type { StoredFile } from "../../interfaces/storage-client.interface.js";
-import { extractPackageName, findVersionInPackageJson } from "../../../utils/dependency-version.util.js";
+import type { ComponentNode } from "../../../../shared/core/entities/component-node.entity.js";
+import type { StoredFile } from "../../../../shared/core/interfaces/storage-client.interface.js";
+import { extractPackageName, findVersionInPackageJson } from "../../../../shared/utils/dependency-version.util.js";
 
 function stripExt(fileName: string): string {
   const ext = path.extname(fileName);

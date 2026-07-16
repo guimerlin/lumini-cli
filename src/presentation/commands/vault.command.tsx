@@ -1,18 +1,21 @@
 import path from "node:path";
 import chalk from "chalk";
 import { Command } from "commander";
-import { FileSystemClient } from "../../infrastructure/clients/file-system.client.js";
-import { VaultService } from "../../core/services/vault.service.js";
-import { ConfigService } from "../../core/services/config.service.js";
-import {
-  askSelectVaultKeys,
-  runVaultImportFlow,
-} from "../prompts/vault-import.prompt.js";
+import { render } from "ink";
+import App from "../App.js";
+import { FileSystemClient } from "../../shared/infrastructure/clients/file-system.client.js";
+import { VaultService } from "../../features/vault/core/vault.service.js";
+import { ConfigService } from "../../features/config/core/config.service.js";
 
 export function registerVaultCommand(program: Command): void {
   const vaultCmd = program
     .command("vault")
-    .description("Manage secure environment variable Vaults");
+    .description("Manage secure environment variable Vaults (Runs interactively if no subcommand)")
+    .action(async () => {
+      // Boot vault manager interactively
+      const { waitUntilExit } = render(<App initialScreen="VAULT_MANAGER" />);
+      await waitUntilExit();
+    });
 
   vaultCmd
     .command("list")
@@ -81,6 +84,13 @@ export function registerVaultCommand(program: Command): void {
         return;
       }
 
+      // If interactive confirmation is needed, boot the React Ink view instead of prompt
+      if (!options.yes && keys.length === 0) {
+        const { waitUntilExit } = render(<App initialScreen="VAULT_MANAGER" />);
+        await waitUntilExit();
+        return;
+      }
+
       let varsToImport = targetVault.variables;
       const destPath = path.resolve(process.cwd(), options.dest ?? ".env");
 
@@ -93,34 +103,24 @@ export function registerVaultCommand(program: Command): void {
             console.warn(chalk.yellow(`[Warning] Variable "${key}" not found in Vault "${name}". Skipping.`));
           }
         }
-      } else if (!options.yes) {
-        const config = await configService.read();
-        const alreadyImportedKeys = config.importedVaults?.[name] ?? [];
-        const selectedKeys = await askSelectVaultKeys(targetVault.variables, alreadyImportedKeys);
-        
-        if (selectedKeys.length === 0) {
-          console.log(chalk.yellow("No variables selected. Aborted."));
-          return;
-        }
-        
-        varsToImport = {};
-        for (const key of selectedKeys) {
-          varsToImport[key] = targetVault.variables[key] as string;
-        }
       }
 
       try {
-        const success = await runVaultImportFlow(
-          name,
-          varsToImport,
-          destPath,
-          configService,
-          vaultService,
-          options.yes,
-        );
-        if (success) {
-          console.log(chalk.green(`[Success] Imported variables from Vault "${name}" into "${path.relative(process.cwd(), destPath)}".`));
+        // Direct non-interactive execution
+        let existingVars: Record<string, string> = {};
+        if (await fsClient.exists(destPath)) {
+          const content = await fsClient.readFile(destPath);
+          existingVars = vaultService.parseEnv(content);
         }
+
+        const merged = { ...existingVars, ...varsToImport };
+        const content = Object.entries(merged)
+          .map(([k, v]) => `${k}=${v}`)
+          .join("\n");
+        await fsClient.writeFile(destPath, content);
+        await configService.registerVaultImport(name, Object.keys(varsToImport));
+        
+        console.log(chalk.green(`[Success] Imported variables from Vault "${name}" into "${path.relative(process.cwd(), destPath)}".`));
       } catch (error) {
         console.error(chalk.red(`[Error] Failed to import variables: ${(error as Error).message}`));
         process.exitCode = 1;
