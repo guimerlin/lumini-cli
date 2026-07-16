@@ -1,95 +1,83 @@
+````markdown
 # Lumini CLI
 
-CLI para coletar, organizar e reutilizar componentes de código, com resolução
-inteligente de dependências via análise de AST (em vez de um simples "copiar e colar").
+A CLI to collect, organize, and reuse code components with intelligent dependency resolution via AST analysis (instead of a simple "copy-and-paste" approach).
 
-## Instalação e uso em desenvolvimento
+## Installation and Development Usage
 
 ```bash
-npm install    # ou pnpm install / yarn install
+npm install    # or pnpm install / yarn install
 npm run dev:save -- ./src/components/Button.tsx
 npm run dev:add -- Button
 npm run dev:list
 ```
+````
 
-## Build de produção
+## Production Build
 
 ```bash
-npm run build      # tsc: transpila src/ -> dist/
+npm run build      # tsc: transpiles src/ -> dist/
 npm run start -- list
-# ou, depois de "npm link" / instalação global:
+# Or, after "npm link" / global installation:
 lumini save ./src/components/Button.tsx
 lumini add Button
+
 ```
 
-`bin/lumini.js` nunca executa TypeScript diretamente — ele só importa
-`dist/presentation/cli.js`, já compilado. Isso garante tempo de inicialização
-rápido para quem instalar o pacote via NPM.
+`bin/lumini.js` never executes TypeScript directly — it only imports the already-compiled `dist/presentation/cli.js`. This guarantees fast startup times for anyone installing the package via NPM.
 
-## Comandos
+## Commands
 
-### `lumini save <caminho> [-n nome] [-s estrategia]`
+### `lumini save <path> [-n name] [-s strategy]`
 
-Analisa o arquivo (ou pasta) indicado, identifica as importações via AST e
-salva na biblioteca local (`~/.lumini/library`). Se `-s` não for informado,
-pergunta interativamente qual estratégia usar:
+Analyzes the specified file (or folder), identifies imports via AST, and saves it to the local library (`~/.lumini/library`). If `-s` is not provided, it interactively prompts the user on which strategy to use:
 
-| Estratégia | O que faz |
-|---|---|
-| `raw` | Salva só o arquivo, como está. Imports locais não são resolvidos. |
-| `deps` | Igual ao `raw`, mas o manifesto de deps externas vira um contrato ativo: o `add` oferece instalar automaticamente o que faltar no projeto de destino. |
-| `bundle` | Injeta o código de todos os arquivos locais importados (recursivamente) dentro do próprio arquivo, gerando um único arquivo autossuficiente. |
-| `folder` | Transforma o arquivo em `Nome/index.ext` e copia para dentro os arquivos locais importados, remapeando os caminhos de import via AST. |
+| Strategy | What it does                                                                                                                                                                |
+| -------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `raw`    | Saves only the file as-is. Local imports are not resolved.                                                                                                                  |
+| `deps`   | Same as `raw`, but the external dependencies manifest becomes an active contract: `add` will offer to automatically install whatever is missing in the destination project. |
+| `bundle` | Injects the code of all locally imported files (recursively) inside the file itself, generating a single self-sufficient file.                                              |
+| `folder` | Transforms the file into `Name/index.ext` and copies the locally imported files inside it, remapping import paths via AST.                                                  |
 
-Se o alvo for uma **pasta**, a estrutura interna é preservada; imports que
-apontem para fora da pasta são trazidos para uma subpasta `_external/`
-(estratégia `folder`) ou inline (estratégia `bundle`).
+If the target is a **folder**, the internal structure is preserved; imports pointing outside the target folder are either moved into an `_external/` subfolder (using the `folder` strategy) or inlined (using the `bundle` strategy).
 
-### `lumini add <nome> [-d pasta]`
+### `lumini add <name> [-d folder]`
 
-Copia um componente salvo para o projeto atual. Verifica o `package.json`
-mais próximo do destino e, se faltar alguma dependência externa, oferece
-adicioná-la automaticamente (não roda o instalador — isso fica por sua conta).
+Copies a saved component to the current project. It checks the closest `package.json` to the destination and, if any external dependency is missing, offers to add it automatically (it does not run the installer — that is left to you).
 
 ### `lumini list`
 
-Lista os componentes salvos na biblioteca.
+Lists all components saved in the library.
 
-## Arquitetura
+## Architecture
 
-Segue rigorosamente o padrão em camadas descrito na documentação original:
+Strictly follows the layered pattern described in the original documentation:
 
 ```
 src/
-├── presentation/     # Commander, prompts (inquirer) — sem lógica de negócio
+├── presentation/     # Commander, prompts (inquirer) — no business logic
 ├── core/
 │   ├── entities/      # ComponentNode, ComponentMetadata
 │   ├── interfaces/    # IAstParser, IFileSystemClient, IStorageClient, ISaveStrategy
 │   └── services/
 │       ├── strategies/           # RawStrategy, DepsStrategy, BundleStrategy, FolderStrategy
-│       ├── dependency-graph.service.ts   # percorre o grafo de imports locais (usado por Bundle/Folder)
+│       ├── dependency-graph.service.ts   # traverses the local import graph (used by Bundle/Folder)
 │       ├── save-component.service.ts
 │       └── add-component.service.ts
 └── infrastructure/
     ├── parsers/       # AstParserClient (Babel: @babel/parser + traverse + generator)
     └── clients/       # FileSystemClient (fs-extra), StorageClient (~/.lumini/library)
+
 ```
 
-`core` nunca importa nada de `infrastructure` diretamente — sempre através das
-interfaces (`IAstParser`, `IFileSystemClient`, `IStorageClient`). Trocar o
-armazenamento local por S3, por exemplo, significa criar um novo
-`IStorageClient` e trocar a instanciação na composition root (`presentation/commands/*.command.ts`).
+`core` never imports anything directly from `infrastructure` — it always goes through interfaces (`IAstParser`, `IFileSystemClient`, `IStorageClient`). Switching local storage to S3, for example, simply means creating a new `IStorageClient` and swapping its instantiation at the composition root (`presentation/commands/*.command.ts`).
 
-## Limitações conhecidas (honestas)
+## Known Limitations (Honest)
 
-- **Bundle** não é um bundler completo: não faz tree-shaking nem resolve
-  colisões de nomes entre módulos diferentes que exportem símbolos com o
-  mesmo identificador. Funciona bem para "componente + alguns hooks/utils";
-  para árvores grandes, prefira `folder`.
-- A detecção de "arquivo de entrada" ao salvar uma **pasta** inteira usa uma
-  heurística (o único arquivo que nenhum outro arquivo interno importa). Em
-  estruturas sem um ponto de entrada óbvio, vale conferir o `entryFile` do
-  metadata gerado.
-- Resolução de módulos cobre `.ts/.tsx/.js/.jsx/.mjs/.cjs` e variações de
-  `index`; paths mapeados via `tsconfig.json` (`baseUrl`/`paths`) ainda não
-  são resolvidos.
+- **Bundle** is not a full bundler: it does not perform tree-shaking, nor does it resolve naming collisions between different modules exporting symbols with the same identifier. It works well for "component + a few hooks/utils"; for large trees, prefer the `folder` strategy.
+- The "entry file" detection when saving an entire **folder** uses a heuristic (the only file that no other internal file imports). For structures without an obvious entry point, it is worth double-checking the generated metadata's `entryFile`.
+- Module resolution covers `.ts/.tsx/.js/.jsx/.mjs/.cjs` and `index` variations; path mapping configured via `tsconfig.json` (`baseUrl`/`paths`) is not yet supported.
+
+```
+
+```
