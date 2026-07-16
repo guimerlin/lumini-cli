@@ -1,49 +1,41 @@
 {
   "name": "lumini-cli",
-  "version": "1.0.0",
-  "description": "Save, organize, and reuse code snippets and project structures intelligently. Your personal code library CLI.",
-  "keywords": [
-    "cli",
-    "boilerplate",
-    "developer-tools",
-    "code-reuse",
-    "typescript",
-    "automation",
-    "component-library"
-  ],
-  "homepage": "https://github.com/guimerlin/lumini-cli#readme",
-  "bugs": {
-    "url": "https://github.com/guimerlin/lumini-cli/issues"
-  },
+  "version": "0.1.0",
+  "description": "CLI para coletar, organizar e reutilizar componentes de código com resolução inteligente de dependências via AST.",
+  "type": "module",
   "bin": {
-    "lumini": "./bin/index.js"
+    "lumini": "bin/lumini.js"
+  },
+  "scripts": {
+    "dev:save": "tsx src/presentation/cli.ts save",
+    "dev:add": "tsx src/presentation/cli.ts add",
+    "dev:list": "tsx src/presentation/cli.ts list",
+    "build": "tsc -p tsconfig.json",
+    "start": "node bin/lumini.js",
+    "typecheck": "tsc --noEmit"
   },
   "engines": {
-    "node": ">=18.0.0"
-  },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/guimerlin/lumini-cli.git"
-  },
-  "license": "ISC",
-  "author": "Luiz Guilherme <https://github.com/guimerlin>",
-  "type": "module",
-  "files": [
-    "bin",
-    "src"
-  ],
-  "scripts": {
-    "test": "test"
+    "node": ">=18"
   },
   "dependencies": {
-    "commander": "^12.0.0",
-    "prompts": "^2.4.2"
+    "@babel/generator": "^7.24.7",
+    "@babel/parser": "^7.24.7",
+    "@babel/traverse": "^7.24.7",
+    "@babel/types": "^7.24.7",
+    "chalk": "^5.3.0",
+    "commander": "^12.1.0",
+    "fs-extra": "^11.2.0",
+    "inquirer": "^9.2.23",
+    "nanoid": "^5.0.7"
   },
   "devDependencies": {
-    "@types/node": "^26.1.1",
-    "@types/prompts": "^2.4.9",
-    "tsx": "^4.23.1",
-    "typescript": "^7.0.2"
+    "@types/babel__generator": "^7.6.8",
+    "@types/babel__traverse": "^7.20.6",
+    "@types/fs-extra": "^11.0.4",
+    "@types/inquirer": "^9.0.7",
+    "@types/node": "^20.14.9",
+    "tsx": "^4.16.2",
+    "typescript": "^5.5.3"
   },
   "allowScripts": {
     "esbuild@0.28.1": true
