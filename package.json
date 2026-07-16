@@ -30,10 +30,12 @@
   "type": "module",
   "files": [
     "bin",
-    "src"
+    "dist"
   ],
   "scripts": {
-    "test": "test"
+    "build": "tsc",
+    "dev:save": "tsx src/presentation/cli.ts save",
+    "dev:add": "tsx src/presentation/cli.ts add"
   },
   "dependencies": {
     "commander": "^12.0.0",
@@ -42,10 +44,9 @@
   "devDependencies": {
     "@types/node": "^26.1.1",
     "@types/prompts": "^2.4.9",
+    "esbuild": "^0.28.1",
+    "ts-node": "^10.9.2",
     "tsx": "^4.23.1",
     "typescript": "^7.0.2"
-  },
-  "allowScripts": {
-    "esbuild@0.28.1": true
   }
 }
