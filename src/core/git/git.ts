@@ -1,4 +1,6 @@
 import { execSync, ExecSyncOptions } from "node:child_process";
+import { readFileSync, existsSync } from "node:fs";
+import { join } from "node:path";
 
 export interface GitFileStatus {
   path: string;
@@ -53,21 +55,27 @@ export function getGitStatus(): GitFileStatus[] {
   const rawStatus = runGit("status --porcelain=v1");
   if (!rawStatus) return [];
 
-  const lines = rawStatus.split("\n");
+  const lines = rawStatus.split("\n").filter(Boolean);
 
-  return lines.map((line) => {
-    const indexStatus = line[0];
-    const workingTreeStatus = line[1];
-    const filePath = line.substring(3).trim();
+  return lines
+    .map((line) => {
+      const indexStatus = line[0];
+      const workingTreeStatus = line[1];
+      const filePath = line.substring(3).trim();
 
-    return {
-      path: filePath,
-      indexStatus,
-      workingTreeStatus,
-      isStaged: indexStatus !== " " && indexStatus !== "?",
-      isUntracked: indexStatus === "?" && workingTreeStatus === "?",
-    };
-  });
+      return {
+        path: filePath,
+        indexStatus,
+        workingTreeStatus,
+        isStaged: indexStatus !== " " && indexStatus !== "?",
+        isUntracked: indexStatus === "?" && workingTreeStatus === "?",
+      };
+    })
+    .filter((f) => {
+      // Remove arquivos que são gitignored (ex: dist/ que pode estar trackeado)
+      const ignoredPaths = filterIgnoredFiles([f.path]);
+      return ignoredPaths.length > 0;
+    });
 }
 
 /**
@@ -84,13 +92,37 @@ export function getGitDiff(): GitDiffResult {
   };
 }
 
+
 /**
- * Adiciona arquivos específicos ao staging.
+ * Filtra uma lista de caminhos removendo os que são ignorados pelo .gitignore.
+ */
+export function filterIgnoredFiles(files: string[]): string[] {
+  if (files.length === 0) return [];
+  try {
+    // git check-ignore lê paths via stdin com --stdin e retorna apenas os ignorados
+    const input = files.join("\n");
+    const ignored = execSync("git check-ignore --stdin", {
+      encoding: "utf-8",
+      input,
+      stdio: ["pipe", "pipe", "pipe"],
+    }) as string;
+    const ignoredSet = new Set(ignored.trim().split("\n").filter(Boolean));
+    return files.filter((f) => !ignoredSet.has(f));
+  } catch {
+    // Se não há nenhum arquivo ignorado, git check-ignore retorna exit code 1
+    // Nesse caso retornamos todos os arquivos originais
+    return files;
+  }
+}
+
+/**
+ * Adiciona arquivos específicos ao staging, ignorando silenciosamente arquivos gitignored.
  */
 export function stageFiles(files: string[]): void {
   if (files.length === 0) return;
-  // Envolve os caminhos entre aspas para evitar problemas com espaços ou caracteres especiais
-  const fileList = files.map((f) => `"${f}"`).join(" ");
+  const validFiles = filterIgnoredFiles(files);
+  if (validFiles.length === 0) return;
+  const fileList = validFiles.map((f) => `"${f}"`).join(" ");
   runGit(`add ${fileList}`);
 }
 
@@ -116,6 +148,117 @@ export function saveUndoSnapshot(): void {
   } catch {
     // Se for o commit inicial e não houver HEAD ainda, ignoramos a criação de ref de commit
   }
+}
+
+// ---------------------------------------------------------------------------
+// Release helpers
+// ---------------------------------------------------------------------------
+
+/**
+ * Retorna o nome da última tag Git (ex: v1.2.3), ou null se não houver.
+ */
+export function getLastTag(): string | null {
+  try {
+    return runGit("describe --tags --abbrev=0");
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Retorna a lista de mensagens de commit desde a última tag.
+ * Se não houver tag anterior, retorna todos os commits.
+ */
+export function getCommitsSinceTag(tag: string | null): string[] {
+  try {
+    const range = tag ? `${tag}..HEAD` : "HEAD";
+    const log = runGit(`log ${range} --oneline --no-merges`);
+    if (!log) return [];
+    return log.split("\n").filter(Boolean);
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Retorna o diff do último commit (HEAD vs HEAD~1).
+ * Se só existir um commit, retorna o diff completo do commit inicial.
+ */
+export function getLastCommitDiff(): string {
+  try {
+    // Verifica se há mais de um commit
+    const count = runGit("rev-list --count HEAD");
+    if (parseInt(count, 10) <= 1) {
+      return runGit("diff --stat HEAD");
+    }
+    return runGit("diff HEAD~1 HEAD");
+  } catch {
+    return "";
+  }
+}
+
+/**
+ * Lê a versão atual do package.json. Caso não exista, tenta a última tag Git.
+ * Fallback final: "0.0.0".
+ */
+export function getCurrentVersion(cwd: string = process.cwd()): string {
+  // 1. Tenta package.json
+  const pkgPath = join(cwd, "package.json");
+  if (existsSync(pkgPath)) {
+    try {
+      const pkg = JSON.parse(readFileSync(pkgPath, "utf-8")) as { version?: string };
+      if (pkg.version) return pkg.version;
+    } catch {
+      // ignora erros de parse
+    }
+  }
+
+  // 2. Tenta última tag Git (remove o 'v' prefixo se houver)
+  const lastTag = getLastTag();
+  if (lastTag) {
+    return lastTag.replace(/^v/, "");
+  }
+
+  // 3. Fallback
+  return "0.0.0";
+}
+
+/**
+ * Cria uma tag Git anotada.
+ */
+export function createTag(version: string, message: string): void {
+  const tag = version.startsWith("v") ? version : `v${version}`;
+  const escapedMsg = message.replace(/"/g, '\\"');
+  runGit(`tag -a ${tag} -m "${escapedMsg}"`);
+}
+
+/**
+ * Incrementa a versão conforme o tipo de bump.
+ */
+export function bumpVersion(
+  currentVersion: string,
+  bump: "major" | "minor" | "patch",
+): string {
+  const clean = currentVersion.replace(/^v/, "");
+  const parts = clean.split(".").map(Number);
+  let [major, minor, patch] = parts.length === 3 ? parts : [0, 0, 0];
+
+  switch (bump) {
+    case "major":
+      major++;
+      minor = 0;
+      patch = 0;
+      break;
+    case "minor":
+      minor++;
+      patch = 0;
+      break;
+    case "patch":
+      patch++;
+      break;
+  }
+
+  return `${major}.${minor}.${patch}`;
 }
 
 /**

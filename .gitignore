@@ -1,10 +1,2 @@
 node_modules
-dist
-
-# Python
-src/workers/python/.venv/
-**/__pycache__/
-*.pyc
-
-# Ambiente e segredos
 .env
