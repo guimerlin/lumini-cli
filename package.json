@@ -11,7 +11,11 @@
     "dev": "tsx ./bin/lumini.js"
   },
   "keywords": [],
-  "author": "Luiz Guilherme",
+  "author": {
+    "email": "guimerlin.dev@gmail.com",
+    "name": "Luiz Guilherme Braga",
+    "url": "https://github.com/guimerlin"
+  },
   "license": "ISC",
   "devEngines": {
     "packageManager": {
