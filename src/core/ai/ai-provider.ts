@@ -1,6 +1,7 @@
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { createOpenAI } from "@ai-sdk/openai";
 import type { LanguageModel } from "ai";
+import { getConfig } from "../config/index.js";
 
 type SupportedProvider = "google" | "ollama" | "openai";
 
@@ -22,17 +23,17 @@ type SupportedProvider = "google" | "ollama" | "openai";
  *     OPENAI_BASE_URL  — base URL customizada (opcional)
  */
 export function getAIModel(): LanguageModel {
-  const provider = (process.env.AI_PROVIDER ?? "google") as SupportedProvider;
+  const provider = (getConfig("AI_PROVIDER") ?? "google") as SupportedProvider;
 
   switch (provider) {
     case "google": {
-      const apiKey = process.env.GEMINI_API_KEY;
+      const apiKey = getConfig("GEMINI_API_KEY");
       if (!apiKey) {
         throw new Error(
-          "GEMINI_API_KEY não definida. Configure no arquivo .env ou no ambiente.",
+          "GEMINI_API_KEY não definida. Configure utilizando: lumini config set GEMINI_API_KEY <valor> -a",
         );
       }
-      const model = process.env.AI_MODEL ?? "gemini-2.0-flash";
+      const model = getConfig("AI_MODEL") ?? "gemini-2.0-flash";
       const google = createGoogleGenerativeAI({ apiKey });
       return google(model) as LanguageModel;
     }
@@ -40,8 +41,8 @@ export function getAIModel(): LanguageModel {
     case "ollama": {
       // Ollama expõe uma API compatível com OpenAI em /v1
       const baseURL =
-        process.env.OLLAMA_BASE_URL ?? "http://localhost:11434/v1";
-      const model = process.env.AI_MODEL ?? "llama3.2";
+        getConfig("OLLAMA_BASE_URL") ?? "http://localhost:11434/v1";
+      const model = getConfig("AI_MODEL") ?? "llama3.2";
       const ollama = createOpenAI({
         apiKey: "ollama", // Ollama não valida a chave, mas o campo é obrigatório
         baseURL,
@@ -50,14 +51,14 @@ export function getAIModel(): LanguageModel {
     }
 
     case "openai": {
-      const apiKey = process.env.OPENAI_API_KEY;
+      const apiKey = getConfig("OPENAI_API_KEY");
       if (!apiKey) {
         throw new Error(
-          "OPENAI_API_KEY não definida. Configure no arquivo .env ou no ambiente.",
+          "OPENAI_API_KEY não definida. Configure utilizando: lumini config set OPENAI_API_KEY <valor> -a",
         );
       }
-      const baseURL = process.env.OPENAI_BASE_URL;
-      const model = process.env.AI_MODEL ?? "gpt-4o-mini";
+      const baseURL = getConfig("OPENAI_BASE_URL");
+      const model = getConfig("AI_MODEL") ?? "gpt-4o-mini";
       const openai = createOpenAI({
         apiKey,
         ...(baseURL ? { baseURL } : {}),

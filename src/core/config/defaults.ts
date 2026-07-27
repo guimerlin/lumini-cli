@@ -1,0 +1,5 @@
+export const defaultConfig = {
+  AI_PROVIDER: "your-provider",
+  AI_MODEL: "your-model",
+  GEMINI_API_KEY: "your-api-key",
+};

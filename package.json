@@ -26,7 +26,6 @@
     "@ai-sdk/openai": "^4.0.20",
     "ai": "^7.0.37",
     "commander": "^15.0.0",
-    "dotenv": "^17.4.2",
     "lumini-cli": "link:",
     "zod": "^4.4.3"
   },

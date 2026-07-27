@@ -1,4 +1,3 @@
-import "dotenv/config";
 import { readdirSync, statSync, existsSync } from "node:fs";
 import { join, relative, dirname, extname } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
