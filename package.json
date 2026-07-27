@@ -22,7 +22,11 @@
   },
   "type": "module",
   "dependencies": {
+    "@ai-sdk/google": "^4.0.24",
+    "@ai-sdk/openai": "^4.0.20",
+    "ai": "^7.0.37",
     "commander": "^15.0.0",
+    "dotenv": "^17.4.2",
     "lumini-cli": "link:"
   },
   "devDependencies": {
