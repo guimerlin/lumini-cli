@@ -1,71 +1,41 @@
 {
   "name": "lumini-cli",
-  "version": "0.1.0",
-  "description": "Save, organize, and reuse code snippets and project structures intelligently. Your personal code library CLI.",
-  "type": "module",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
   "bin": {
-    "lumini": "bin/lumini.js"
-  },
-  "files": [
-    "bin"
-  ],
-  "license": "MIT",
-  "author": {
-    "email": "guimerlin.dev@gmail.com",
-    "name": "Luiz Guilherme",
-    "url": "https://github.com/guimerlin"
-  },
-  "keywords": [
-    "cli",
-    "boilerplate",
-    "developer-tools",
-    "code-reuse",
-    "typescript",
-    "automation",
-    "component-library"
-  ],
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/guimerlin/lumini-cli"
-  },
-  "homepage": "https://github.com/guimerlin/lumini-cli#readme",
-  "bugs": {
-    "url": "https://github.com/guimerlin/lumini-cli/issues"
+    "lumini": "./bin/lumini.js"
   },
   "scripts": {
-    "dev:save": "tsx src/presentation/cli.ts save",
-    "dev:add": "tsx src/presentation/cli.ts add",
-    "dev:list": "tsx src/presentation/cli.ts list",
-    "build": "tsc -p tsconfig.json && node esbuild.config.js",
-    "start": "node bin/lumini.js",
-    "typecheck": "tsc --noEmit",
-    "prepublishOnly": "npm run build"
+    "build": "tsc",
+    "dev": "tsx ./bin/lumini.js"
   },
-  "engines": {
-    "node": ">=18"
+  "keywords": [],
+  "author": {
+    "email": "guimerlin.dev@gmail.com",
+    "name": "Luiz Guilherme Braga",
+    "url": "https://github.com/guimerlin"
   },
+  "license": "ISC",
+  "devEngines": {
+    "packageManager": {
+      "name": "pnpm",
+      "version": "^11.15.1",
+      "onFail": "download"
+    }
+  },
+  "type": "module",
   "dependencies": {
-    "@babel/generator": "^7.24.7",
-    "@babel/parser": "^7.24.7",
-    "@babel/traverse": "^7.24.7",
-    "@babel/types": "^7.24.7",
-    "chalk": "^5.3.0",
-    "commander": "^12.1.0",
-    "fs-extra": "^11.2.0",
-    "inquirer": "^9.2.23",
-    "nanoid": "^5.0.7"
+    "@ai-sdk/google": "^4.0.24",
+    "@ai-sdk/openai": "^4.0.20",
+    "ai": "^7.0.37",
+    "commander": "^15.0.0",
+    "lumini-cli": "link:",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
-    "@types/babel__generator": "^7.6.8",
-    "@types/babel__traverse": "^7.20.6",
-    "@types/fs-extra": "^11.0.4",
-    "@types/inquirer": "^9.0.7",
-    "@types/node": "^20.14.9",
-    "esbuild": "^0.28.1",
-    "tsx": "^4.16.2",
-    "typescript": "^5.5.3"
-  },
-  "allowScripts": {
-    "esbuild@0.28.1": true
+    "@types/node": "^26.1.1",
+    "tsx": "^4.23.1",
+    "typescript": "^7.0.2"
   }
 }
