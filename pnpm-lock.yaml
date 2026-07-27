@@ -212,13 +212,13 @@ importers:
     dependencies:
       '@ai-sdk/google':
         specifier: ^4.0.24
-        version: 4.0.24(zod@3.25.76)
+        version: 4.0.24(zod@4.4.3)
       '@ai-sdk/openai':
         specifier: ^4.0.20
-        version: 4.0.20(zod@3.25.76)
+        version: 4.0.20(zod@4.4.3)
       ai:
         specifier: ^7.0.37
-        version: 7.0.37(zod@3.25.76)
+        version: 7.0.37(zod@4.4.3)
       commander:
         specifier: ^15.0.0
         version: 15.0.0
@@ -228,6 +228,9 @@ importers:
       lumini-cli:
         specifier: 'link:'
         version: 'link:'
+      zod:
+        specifier: ^4.4.3
+        version: 4.4.3
     devDependencies:
       '@types/node':
         specifier: ^26.1.1
@@ -602,37 +605,37 @@ packages:
   undici-types@8.3.0:
     resolution: {integrity: sha512-j375ScV60dom+YkPFIfTLcOiPxkN/buHz5GobjLhixFuANaNs3C9l4GmrWqejgXWJ7BbJcFYpTEUkS1Ge8bpZQ==}
 
-  zod@3.25.76:
-    resolution: {integrity: sha512-gzUt/qt81nXsFGKIFcC3YnfEAx5NkunCfnDlvuBSSFS02bcXu4Lmea0AFIUwbLWxWPx3d9p8S5QoaujKcNQxcQ==}
+  zod@4.4.3:
+    resolution: {integrity: sha512-ytENFjIJFl2UwYglde2jchW2Hwm4GJFLDiSXWdTrJQBIN9Fcyp7n4DhxJEiWNAJMV1/BqWfW/kkg71UDcHJyTQ==}
 
 snapshots:
 
-  '@ai-sdk/gateway@4.0.28(zod@3.25.76)':
+  '@ai-sdk/gateway@4.0.28(zod@4.4.3)':
     dependencies:
       '@ai-sdk/provider': 4.0.3
-      '@ai-sdk/provider-utils': 5.0.12(zod@3.25.76)
+      '@ai-sdk/provider-utils': 5.0.12(zod@4.4.3)
       '@vercel/oidc': 3.2.0
-      zod: 3.25.76
+      zod: 4.4.3
 
-  '@ai-sdk/google@4.0.24(zod@3.25.76)':
+  '@ai-sdk/google@4.0.24(zod@4.4.3)':
     dependencies:
       '@ai-sdk/provider': 4.0.3
-      '@ai-sdk/provider-utils': 5.0.12(zod@3.25.76)
-      zod: 3.25.76
+      '@ai-sdk/provider-utils': 5.0.12(zod@4.4.3)
+      zod: 4.4.3
 
-  '@ai-sdk/openai@4.0.20(zod@3.25.76)':
+  '@ai-sdk/openai@4.0.20(zod@4.4.3)':
     dependencies:
       '@ai-sdk/provider': 4.0.3
-      '@ai-sdk/provider-utils': 5.0.12(zod@3.25.76)
-      zod: 3.25.76
+      '@ai-sdk/provider-utils': 5.0.12(zod@4.4.3)
+      zod: 4.4.3
 
-  '@ai-sdk/provider-utils@5.0.12(zod@3.25.76)':
+  '@ai-sdk/provider-utils@5.0.12(zod@4.4.3)':
     dependencies:
       '@ai-sdk/provider': 4.0.3
       '@standard-schema/spec': 1.1.0
       '@workflow/serde': 4.1.0
       eventsource-parser: 3.1.0
-      zod: 3.25.76
+      zod: 4.4.3
 
   '@ai-sdk/provider@4.0.3':
     dependencies:
@@ -786,12 +789,12 @@ snapshots:
 
   '@workflow/serde@4.1.0': {}
 
-  ai@7.0.37(zod@3.25.76):
+  ai@7.0.37(zod@4.4.3):
     dependencies:
-      '@ai-sdk/gateway': 4.0.28(zod@3.25.76)
+      '@ai-sdk/gateway': 4.0.28(zod@4.4.3)
       '@ai-sdk/provider': 4.0.3
-      '@ai-sdk/provider-utils': 5.0.12(zod@3.25.76)
-      zod: 3.25.76
+      '@ai-sdk/provider-utils': 5.0.12(zod@4.4.3)
+      zod: 4.4.3
 
   commander@15.0.0: {}
 
@@ -864,4 +867,4 @@ snapshots:
 
   undici-types@8.3.0: {}
 
-  zod@3.25.76: {}
+  zod@4.4.3: {}

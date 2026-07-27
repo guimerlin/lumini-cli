@@ -1,28 +1,14 @@
-import { generateText } from "ai";
+import { generateText, Output } from "ai";
 import { getAIModel } from "./ai-provider.js";
-import type { GitDiffResult, GitFileStatus } from "./git.js";
+import type { GitDiffResult, GitFileStatus } from "../git/git.js";
+import { z } from "zod";
 
 const SYSTEM_PROMPT = `\
 Você é um especialista em Git e revisão de código.
-Sua tarefa é analisar as alterações de um repositório Git e agrupá-las em commits \
-semânticos coesos, seguindo o padrão Conventional Commits.
+Sua tarefa é analisar alterações e gerar as respostas na estrutura em que forem pedidas.
 
-Retorne SOMENTE um JSON válido, sem markdown, sem explicações, no formato:
-{
-  "groups": [
-    {
-      "type": "feat | fix | docs | style | refactor | test | chore",
-      "scope": "nome do módulo afetado (opcional)",
-      "message": "mensagem do commit em inglês no imperativo",
-      "files": ["lista", "de", "arquivos"]
-    }
-  ]
-}`;
+Retorne SOMENTE um JSON válido, sem markdown, sem explicações.`;
 
-/**
- * Analisa o status e diff do repositório e agrupa os arquivos em commits
- * semânticos usando o modelo de IA configurado via variáveis de ambiente.
- */
 export async function analyzeAndGroupCommits(
   status: GitFileStatus[],
   diff: GitDiffResult,
@@ -37,6 +23,42 @@ export async function analyzeAndGroupCommits(
     model,
     system: SYSTEM_PROMPT,
     prompt: userMessage,
+    output: Output.object({
+      schema: z.object({
+        commits: z.array(
+          z.object({
+            scope: z
+              .string()
+              .describe(
+                "O módulo ou área afetada (ex: auth, ui, database, config). Pode ser vazio se for global.",
+              ),
+            type: z
+              .enum([
+                "feat",
+                "fix",
+                "chore",
+                "refactor",
+                "docs",
+                "style",
+                "test",
+                "perf",
+                "ci",
+              ])
+              .describe("O tipo de alteração no padrão Conventional Commits."),
+            files: z
+              .array(z.string())
+              .describe(
+                "Lista contendo os caminhos exatos dos arquivos pertencentes a este commit.",
+              ),
+            message: z
+              .string()
+              .describe(
+                "A mensagem descritiva do commit no formato: tipo(escopo): descrição.",
+              ),
+          }),
+        ),
+      }),
+    }),
   });
 
   try {

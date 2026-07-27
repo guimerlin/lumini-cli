@@ -1,4 +1,4 @@
-import { runGit, saveUndoSnapshot } from "../../core/git.js";
+import { runGit, saveUndoSnapshot } from "../../core/git/git.js";
 
 // Definição do comando lida pelo leitor dinâmico
 export const command = {

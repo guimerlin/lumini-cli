@@ -27,7 +27,8 @@
     "ai": "^7.0.37",
     "commander": "^15.0.0",
     "dotenv": "^17.4.2",
-    "lumini-cli": "link:"
+    "lumini-cli": "link:",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@types/node": "^26.1.1",
