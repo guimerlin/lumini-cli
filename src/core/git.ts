@@ -19,11 +19,11 @@ export interface GitDiffResult {
  */
 export function runGit(command: string, options?: ExecSyncOptions): string {
   try {
-    return execSync(`git ${command}`, {
+    return (execSync(`git ${command}`, {
       encoding: "utf-8",
       stdio: ["ignore", "pipe", "pipe"],
       ...options,
-    }).trim();
+    }) as string).trim();
   } catch (error: any) {
     const stderr = error.stderr ? error.stderr.toString() : error.message;
     throw new Error(`Erro ao executar comando Git "git ${command}": ${stderr}`);

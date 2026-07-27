@@ -11,7 +11,7 @@ export const command = {
       description: "Simula a execução sem aplicar os commits",
     },
   ],
-  async action(options) {
+  async action(options: { dryRun?: boolean }) {
     saveUndoSnapshot();
     console.log("🤖 Lumini analisando o repositório...");
 
